@@ -13,6 +13,11 @@ jobs:
         with:
           flutter-version: '3.13.0'
           channel: 'stable'
+      - name: Recreate Android project files
+        run: |
+          if [ ! -d "android" ]; then
+            flutter create . --platforms=android
+          fi
       - run: flutter pub get
       - run: flutter build apk --release --split-per-abi
       - uses: actions/upload-artifact@v4
