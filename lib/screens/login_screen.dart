@@ -61,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFD4AF37)),
               ),
               const SizedBox(height: 40),
-              _buildInput(_hostController, 'السيرفر (Host)', Icons.server),
+              _buildInput(_hostController, 'السيرفر (Host)', Icons.dns),
               const SizedBox(height: 15),
               _buildInput(_userController, 'اسم المستخدم', Icons.person),
               const SizedBox(height: 15),
