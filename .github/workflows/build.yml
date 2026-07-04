@@ -1,9 +1,12 @@
-name: Build APK
+name: Build & Release APK
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -47,11 +50,49 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build APK
+      - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: al-hosan-checker-release
           path: app/build/outputs/apk/release/*.apk
+
+      # ─── Auto Release ────────────────────────────────────────────────
+      - name: Generate version info
+        id: version
+        run: |
+          VERSION="v1.0.0-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "🐎 الحصان الفاحص ${{ steps.version.outputs.version }}"
+          body: |
+            ## 🐎 الحصان الفاحص - AlHosan Checker
+
+            **تاريخ البناء:** ${{ steps.version.outputs.date }}
+            **Commit:** ${{ github.sha }}
+
+            ### التكنولوجيا
+            - **UI:** Kotlin + Jetpack Compose (Material3)
+            - **Core:** Rust (reqwest + rayon + tokio)
+
+            ### التغييرات
+            ${{ github.event.head_commit.message }}
+
+            ### التعليمات
+            1. حمّل ملف APK
+            2. فعّل "التثبيت من مصادر غير معروفة" في إعدادات الجهاز
+            3. ثبّت التطبيق
+
+            **متطلبات:** Android 8.0+ (API 26)
+          files: app/build/outputs/apk/release/*.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
