@@ -51,8 +51,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APK
+      - name: Build Release APK (signed)
         run: ./gradlew assembleRelease
+
+      - name: Verify APK is signed
+        run: |
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK_FILE" ]; then
+            echo "❌ No APK found!"
+            exit 1
+          fi
+          echo "APK: $APK_FILE"
+          
+          # Verify signing
+          jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -5
+          
+          # Rename with clean name
+          BUILD_NUMBER=${{ github.run_number }}
+          mv "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker-v1.0.0-build${BUILD_NUMBER}.apk"
+          echo "✅ APK signed and renamed successfully"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -60,24 +77,26 @@ jobs:
           name: al-hosan-checker-release
           path: app/build/outputs/apk/release/*.apk
 
-      # ─── Auto Release ──────────────────────────────────
+      # ─── Auto Release ──────────────────────────────
       - name: Generate version info
         id: version
         run: |
-          VERSION="v1.0.0-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          BUILD_NUMBER=${{ github.run_number }}
+          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
+          echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: "🐎 الحصان الفاحص ${{ steps.version.outputs.version }}"
+          tag_name: "v1.0.0-build${{ steps.version.outputs.build_number }}"
+          name: "🐎 الحصان الفاحص v1.0.0 - بناء #${{ steps.version.outputs.build_number }}"
           body: |
             ## 🐎 الحصان الفاحص - AlHosan Checker
 
+            **الإصدار:** v1.0.0 | **رقم البناء:** #${{ steps.version.outputs.build_number }}
             **تاريخ البناء:** ${{ steps.version.outputs.date }}
-            **Commit:** ${{ github.sha }}
+            **Commit:** ${{ steps.version.outputs.commit_short }}
 
             ### التقنولوجيا
             - **UI:** Kotlin + Jetpack Compose (Material3)
