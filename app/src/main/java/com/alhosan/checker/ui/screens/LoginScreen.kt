@@ -1,11 +1,11 @@
 package com.alhosan.checker.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -15,9 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alhosan.checker.R
 import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.ui.components.AlHosanButton
 import com.alhosan.checker.ui.components.AlHosanTextField
@@ -26,7 +29,7 @@ import com.alhosan.checker.viewmodel.CheckerViewModel
 
 /**
  * Login/Check screen - main entry point of the app.
- * Matches the original Flutter LoginScreen design with gold-on-black theme.
+ * Gold-on-black theme with the AlHosan horse logo.
  */
 @Composable
 fun LoginScreen(
@@ -77,19 +80,20 @@ fun LoginScreen(
                 .padding(top = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App Icon - Horse head (using Dns as server icon since Hotel doesn't fit)
-            Icon(
-                imageVector = Icons.Default.Dns,
-                contentDescription = null,
-                tint = Gold,
-                modifier = Modifier.size(80.dp)
+            // App Logo - AlHosan Horse
+            Image(
+                painter = painterResource(id = R.drawable.ic_alhosan_logo),
+                contentDescription = "شعار الحصان",
+                modifier = Modifier
+                    .size(120.dp),
+                contentScale = ContentScale.Fit
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
             // App Title
             Text(
-                text = "محرك الحصان الفاحص",
+                text = "الحصان الفاحص",
                 style = MaterialTheme.typography.headlineMedium,
                 color = Gold,
                 textAlign = TextAlign.Center

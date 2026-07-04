@@ -2,34 +2,34 @@
 
 تطبيق فحص اشتراكات Xtream و M3U بسرعة وسهولة، مع واجهة مستخدم احترافية باللغة العربية.
 
-**التكنولوجيا:** Kotlin + Jetpack Compose (الواجهة) + Rust (المعالجة الثقيلة)
+**التقنولوجيا:** Kotlin + Jetpack Compose (الواجهة) + Rust (المعالجة الثقيلة)
 
 ---
 
 ## 🏗️ البنية المعمارية
 
 ```
-┌─────────────────────────────────────────────┐
-│           Jetpack Compose UI                │
-│  (LoginScreen → ResultScreen + Navigation)  │
-├─────────────────────────────────────────────┤
-│              ViewModel                      │
-│  (CheckerViewModel - State Management)     │
-├─────────────────────────────────────────────┤
-│            Repository Layer                 │
-│  (CheckerRepository - IO Dispatcher)       │
-├──────────────────────┬──────────────────────┤
-│     RustBridge       │   OkHttp (fallback)   │
-│  (JNI Interface)     │                      │
-├──────────────────────┤──────────────────────┤
-│     libalhosan_core.so (Rust)              │
-│  ┌─────────────┬─────────────┐             │
-│  │  xtream.rs  │   m3u.rs    │             │
-│  │  HTTP +     │  Parsing +  │             │
-│  │  JSON +     │  Filtering  │             │
-│  │  Batch      │  (rayon)    │             │
-│  └─────────────┴─────────────┘             │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│           Jetpack Compose UI                      │
+│  (LoginScreen → ResultScreen + Navigation)        │
+├──────────────────────────────────────────────────┤
+│              ViewModel                             │
+│  (CheckerViewModel - State Management)            │
+├──────────────────────────────────────────────────┤
+│            Repository Layer                        │
+│  (CheckerRepository - IO Dispatcher)              │
+├──────────────────────┬───────────────────────────┤
+│     RustBridge       │   OkHttp (fallback)        │
+│  (JNI Interface)     │                            │
+├──────────────────────┼───────────────────────────┤
+│     libalhosan_core.so (Rust)                     │
+│  ┌──────────────┬──────────────┐                  │
+│  │  xtream.rs   │   m3u.rs     │                  │
+│  │  HTTP +      │  Parsing +   │                  │
+│  │  JSON +      │  Filtering   │                  │
+│  │  Batch       │  (rayon)     │                  │
+│  └──────────────┴──────────────┘                  │
+└──────────────────────────────────────────────────┘
 ```
 
 ### لماذا Kotlin + Rust؟
@@ -40,14 +40,14 @@
 | الأمان | Null-safety | Memory-safety بدون GC |
 | التوازي | Coroutines | Rayon (multithreading) |
 | حجم المكتبة | ~2MB | ~500KB (مضغوط) |
-| استهلاك الذاكرة |适中 | ضئيل جداً |
+| استهلاك الذاكرة | متوسط | ضئيل جداً |
 
 ---
 
 ## 📂 هيكل المشروع
 
 ```
-al-hosan-checker-kotlin/
+al-hosan-checker/
 ├── app/
 │   ├── build.gradle.kts          # Gradle config مع Compose + Rust
 │   ├── src/main/
@@ -77,10 +77,12 @@ al-hosan-checker-kotlin/
 │   │   │   └── viewmodel/
 │   │   │       └── CheckerViewModel.kt   # ViewModel
 │   │   └── res/
-│   │       ├── values/
-│   │       │   ├── strings.xml
-│   │       │   └── themes.xml
-│   │       └── mipmap-*/                 # App icons
+│   │       ├── drawable/
+│   │       │   └── ic_alhosan_logo.png   # App logo
+│   │       ├── mipmap-*/                 # App icons (all densities)
+│   │       └── values/
+│   │           ├── strings.xml
+│   │           └── themes.xml
 ├── rust/
 │   ├── Cargo.toml                # Rust dependencies
 │   ├── build_android.sh          # Build script for Android
@@ -105,7 +107,7 @@ al-hosan-checker-kotlin/
 
 1. **Android Studio** (Hedgehog أو أحدث)
 2. **JDK 17**
-3. **Android NDK** 26.1.10909125
+3. **Android NDK** 27.0.12077973
 4. **Rust toolchain** + `cargo-ndk`
 
 ```bash
@@ -120,7 +122,7 @@ cargo install cargo-ndk
 
 ```bash
 cd rust
-export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
 ./build_android.sh
 ```
 
@@ -156,7 +158,6 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
 
 ## 🎨 التصميم
 
-نفس التصميم الأصلي من تطبيق Flutter:
 - **خلفية سوداء** (#000000)
 - **لون ذهبي** (#D4AF37) للعناصر الرئيسية
 - **سطح داكن** (#0A0A0A) للبطاقات
@@ -169,20 +170,6 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
 
 - Android 8.0 (API 26) أو أحدث
 - اتصال بالإنترنت
-
----
-
-## ⚖️ المقارنة مع النسخة الأصلية (Flutter/Dart)
-
-| الميزة | Flutter (قديم) | Kotlin + Rust (جديد) |
-|--------|----------------|---------------------|
-| حجم APK | ~15MB | ~5MB |
-| استهلاك الذاكرة | ~80MB | ~30MB |
-| سرعة الفحص | 15s timeout | 10s timeout (أسرع HTTP) |
-| Batch check | غير متوفر | متوفر (rayon) |
-| M3U parsing | غير متوفر | متوفر (Rust) |
-| فلترة القنوات | غير متوفرة | متوفرة (rayon) |
-| تكلفة البناء | Flutter SDK كامل | Gradle + Cargo فقط |
 
 ---
 
