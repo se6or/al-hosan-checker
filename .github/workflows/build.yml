@@ -1,26 +1,57 @@
 name: Build APK
-on: [push, workflow_dispatch]
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          flutter-version: '3.19.0'
-          channel: 'stable'
-          cache: true
-      - name: Install dependencies
-        run: flutter pub get
-      - name: Generate App Icons
-        run: flutter pub run flutter_launcher_icons
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk
+
+      - name: Build Rust core
+        working-directory: rust
+        run: |
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
+          ./build_android.sh
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
       - name: Build APK
-        run: flutter build apk --release --split-per-abi
-      - uses: actions/upload-artifact@v4
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: apks
-          path: build/app/outputs/flutter-apk/*.apk
+          name: al-hosan-checker-release
+          path: app/build/outputs/apk/release/*.apk

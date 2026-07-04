@@ -1,0 +1,45 @@
+[package]
+name = "alhosan_core"
+version = "1.0.0"
+edition = "2021"
+description = "Rust core library for AlHosan Checker - handles heavy processing like M3U parsing, channel filtering, and batch checking"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# JSON
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# JNI bindings
+jni = "0.21"
+
+# URL parsing
+url = "2.5"
+
+# M3U parsing
+nom = "7.1"
+
+# Logging
+log = "0.4"
+android_logger = "0.13"
+
+# Chrono for date handling
+chrono = "0.4"
+
+# Concurrent processing
+rayon = "1.8"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
