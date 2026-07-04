@@ -24,7 +24,7 @@ android {
         create("release") {
             // Public signing info - this is an open source project
             // The keystore is committed to the repo for reproducible builds
-            storeFile = file("../../alhosan-release.keystore")
+            storeFile = rootProject.file("alhosan-release.keystore")
             storePassword = "alhosan2024"
             keyAlias = "alhosan"
             keyPassword = "alhosan2024"
