@@ -7,9 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -18,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -34,7 +32,7 @@ fun AlHosanTextField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    icon: @Composable () -> Unit,
+    icon: ImageVector,
     isPassword: Boolean = false,
     obscurePassword: Boolean = true,
     onTogglePassword: (() -> Unit)? = null,
@@ -46,11 +44,7 @@ fun AlHosanTextField(
         label = { Text(label, color = Color.Gray) },
         leadingIcon = {
             Icon(
-                imageVector = when (icon) {
-                    is DnsIcon -> Icons.Default.Dns
-                    is PersonIcon -> Icons.Default.Person
-                    else -> Icons.Default.Lock
-                },
+                imageVector = icon,
                 contentDescription = null,
                 tint = Gold
             )
@@ -86,11 +80,6 @@ fun AlHosanTextField(
         modifier = modifier.fillMaxWidth()
     )
 }
-
-// Icon type markers for the when expression
-object DnsIcon
-object PersonIcon
-object LockIcon
 
 /**
  * Gold info card for displaying subscription details

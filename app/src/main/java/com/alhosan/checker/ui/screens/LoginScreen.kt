@@ -2,7 +2,9 @@ package com.alhosan.checker.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
@@ -19,9 +21,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.ui.components.AlHosanButton
 import com.alhosan.checker.ui.components.AlHosanTextField
-import com.alhosan.checker.ui.components.DnsIcon
-import com.alhosan.checker.ui.components.LockIcon
-import com.alhosan.checker.ui.components.PersonIcon
 import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.viewmodel.CheckerViewModel
 
@@ -78,9 +77,9 @@ fun LoginScreen(
                 .padding(top = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // App Icon - Horse head (using Hotel as closest material icon)
+            // App Icon - Horse head (using Dns as server icon since Hotel doesn't fit)
             Icon(
-                imageVector = Icons.Default.Hotel,
+                imageVector = Icons.Default.Dns,
                 contentDescription = null,
                 tint = Gold,
                 modifier = Modifier.size(80.dp)
@@ -103,7 +102,7 @@ fun LoginScreen(
                 value = host,
                 onValueChange = viewModel::updateHost,
                 label = "السيرفر (Host)",
-                icon = DnsIcon
+                icon = Icons.Default.Dns
             )
 
             Spacer(modifier = Modifier.height(15.dp))
@@ -113,7 +112,7 @@ fun LoginScreen(
                 value = username,
                 onValueChange = viewModel::updateUsername,
                 label = "اسم المستخدم",
-                icon = PersonIcon
+                icon = Icons.Default.Person
             )
 
             Spacer(modifier = Modifier.height(15.dp))
@@ -123,7 +122,7 @@ fun LoginScreen(
                 value = password,
                 onValueChange = viewModel::updatePassword,
                 label = "كلمة المرور",
-                icon = LockIcon,
+                icon = Icons.Default.Lock,
                 isPassword = true,
                 obscurePassword = obscurePassword,
                 onTogglePassword = viewModel::togglePasswordVisibility
