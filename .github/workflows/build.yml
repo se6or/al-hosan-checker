@@ -24,6 +24,9 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install Android NDK
+        run: sdkmanager "ndk;27.0.12077973"
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -35,7 +38,7 @@ jobs:
       - name: Build Rust core
         working-directory: rust
         run: |
-          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125
+          export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
           ./build_android.sh
 
       - name: Cache Gradle packages
