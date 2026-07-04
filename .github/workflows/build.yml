@@ -1,8 +1,6 @@
 name: Build & Release APK
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -62,7 +60,7 @@ jobs:
           name: al-hosan-checker-release
           path: app/build/outputs/apk/release/*.apk
 
-      # ─── Auto Release ────────────────────────────────────────────────
+      # ─── Auto Release ──────────────────────────────────
       - name: Generate version info
         id: version
         run: |
@@ -81,12 +79,9 @@ jobs:
             **تاريخ البناء:** ${{ steps.version.outputs.date }}
             **Commit:** ${{ github.sha }}
 
-            ### التكنولوجيا
+            ### التقنولوجيا
             - **UI:** Kotlin + Jetpack Compose (Material3)
             - **Core:** Rust (reqwest + rayon + tokio)
-
-            ### التغييرات
-            ${{ github.event.head_commit.message }}
 
             ### التعليمات
             1. حمّل ملف APK
