@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
@@ -18,12 +17,6 @@ android {
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
-
-        externalNativeBuild {
-            cmake {
-                cppFlags += ""
-            }
         }
     }
 
@@ -51,13 +44,16 @@ android {
         compose = true
     }
 
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
 
-    // Include Rust .so files
     sourceSets["main"].jniLibs.srcDirs("src/main/jniLibs")
 }
 
