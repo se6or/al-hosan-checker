@@ -1,14 +1,10 @@
-name: Build APK and Sync Android Files
+name: Build APK
 on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -18,27 +14,10 @@ jobs:
           flutter-version: '3.13.0'
           channel: 'stable'
           cache: true
-      - name: Recreate Android project files
-        run: |
-          if [ ! -d "android" ]; then
-            flutter create . --project-name=al_hosan_checker --platforms=android
-          fi
       - name: Install dependencies
         run: flutter pub get
       - name: Generate App Icons
-        run: |
-          # Disable iOS icons as the folder doesn't exist yet
-          sed -i 's/ios: true/ios: false/g' pubspec.yaml
-          flutter pub run flutter_launcher_icons
-      - name: Commit and Push Android files
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -d "android" ]; then
-            git add android/ pubspec.yaml
-            git commit -m "chore: auto-generate android project files and icons" || echo "No changes to commit"
-            git push origin main || echo "Push failed, might be permissions"
-          fi
+        run: flutter pub run flutter_launcher_icons
       - name: Build APK
         run: flutter build apk --release --split-per-abi
       - uses: actions/upload-artifact@v4
