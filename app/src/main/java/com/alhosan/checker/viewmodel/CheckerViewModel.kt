@@ -6,7 +6,6 @@ import com.alhosan.checker.data.model.CheckerInput
 import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.data.model.Subscription
 import com.alhosan.checker.data.repository.CheckerRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
