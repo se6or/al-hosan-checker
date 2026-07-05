@@ -59,14 +59,6 @@ import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
 
-/**
- * Login/Check screen - matching HTML reference's #scr-login
- * Features: Xtream/M3U tabs, paste buttons, progress bar, running horse animation
- *
- * NO HEADER BAR — the card starts directly at the top of the screen (below
- * status bar) just like the reference design. The language toggle is a small
- * floating circular button passed in via [floatingHeader] and overlaid on top.
- */
 @Composable
 fun LoginScreen(
     onResultReady: () -> Unit,
@@ -86,17 +78,13 @@ fun LoginScreen(
     val progressPhase by viewModel.progressPhase.collectAsState()
     val progressPercent by viewModel.progressPercent.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
-    val isCounting by viewModel.isCounting.collectAsState()
 
     val context = LocalContext.current
 
-    // Handle system back button on the login screen — exit the app.
-    // (Matches the HTML reference's handleAndroidBack behavior for scr-login.)
     BackHandler(enabled = true) {
         (context as? Activity)?.finish()
     }
 
-    // Handle state changes
     LaunchedEffect(state) {
         when (state) {
             is CheckerState.Success -> onResultReady()
@@ -108,7 +96,6 @@ fun LoginScreen(
         }
     }
 
-    // Clear toast after delay
     LaunchedEffect(toastMessage) {
         if (toastMessage != null) {
             kotlinx.coroutines.delay(2500)
@@ -122,27 +109,19 @@ fun LoginScreen(
             .background(Black)
             .statusBarsPadding()
     ) {
-        // Floating language button (top-end corner, overlays the card)
-        Box(modifier = Modifier.align(Alignment.TopEnd)) {
-            floatingHeader()
-        }
-
+        // ── Card column — drawn first (lower z-order) ──
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(14.dp)
+                .padding(start = 14.dp, end = 14.dp, top = 60.dp, bottom = 14.dp)
         ) {
-            // ─── Card container matching HTML reference's .card ───
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderGold),
                 shape = RoundedCornerShape(28.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp, 20.dp)
-                ) {
-                    // ─── Tabs: Xtream / M3U Link ───
+                Column(modifier = Modifier.padding(24.dp, 20.dp)) {
                     TabsRow(
                         selectedMode = checkMode,
                         onModeChange = viewModel::setCheckMode,
@@ -151,27 +130,21 @@ fun LoginScreen(
 
                     Spacer(modifier = Modifier.height(22.dp))
 
-                    // ─── Input fields ───
                     if (checkMode == CheckMode.XTREAM) {
-                        // Xtream inputs
                         AlHosanInputRow(
                             value = host,
                             onValueChange = viewModel::updateHost,
                             placeholder = lang.hPl,
                             onPaste = { pasteFromClipboard(context, viewModel::updateHost) }
                         )
-
                         Spacer(modifier = Modifier.height(14.dp))
-
                         AlHosanInputRow(
                             value = username,
                             onValueChange = viewModel::updateUsername,
                             placeholder = lang.uPl,
                             onPaste = { pasteFromClipboard(context, viewModel::updateUsername) }
                         )
-
                         Spacer(modifier = Modifier.height(14.dp))
-
                         AlHosanInputRow(
                             value = password,
                             onValueChange = viewModel::updatePassword,
@@ -182,7 +155,6 @@ fun LoginScreen(
                             onPaste = { pasteFromClipboard(context, viewModel::updatePassword) }
                         )
                     } else {
-                        // M3U Link input
                         AlHosanInputRow(
                             value = m3uLink,
                             onValueChange = viewModel::updateM3uLink,
@@ -191,20 +163,15 @@ fun LoginScreen(
                         )
                     }
 
-                    // ─── Progress bar (visible during check) ───
-                    AnimatedVisibility(
-                        visible = isChecking,
-                        enter = fadeIn(),
-                        exit = fadeOut()
-                    ) {
+                    AnimatedVisibility(visible = isChecking, enter = fadeIn(), exit = fadeOut()) {
                         Column {
                             Spacer(modifier = Modifier.height(20.dp))
                             AlHosanProgressBar(
                                 progress = progressPercent / 100f,
                                 label = when (progressPhase) {
                                     com.alhosan.checker.data.model.ProgressPhase.CONNECTING -> lang.prog1
-                                    com.alhosan.checker.data.model.ProgressPhase.VERIFYING -> lang.prog2
-                                    com.alhosan.checker.data.model.ProgressPhase.COUNTING -> lang.prog3
+                                    com.alhosan.checker.data.model.ProgressPhase.VERIFYING  -> lang.prog2
+                                    com.alhosan.checker.data.model.ProgressPhase.COUNTING   -> lang.prog3
                                     com.alhosan.checker.data.model.ProgressPhase.FINALIZING -> lang.prog4
                                     else -> lang.prog1
                                 }
@@ -213,7 +180,6 @@ fun LoginScreen(
                         }
                     }
 
-                    // ─── Check button ───
                     AlHosanMainButton(
                         text = lang.check,
                         icon = Icons.Default.Search,
@@ -222,7 +188,6 @@ fun LoginScreen(
                         enabled = !isChecking
                     )
 
-                    // ─── History button ───
                     Spacer(modifier = Modifier.height(14.dp))
 
                     AlHosanMainButton(
@@ -235,25 +200,23 @@ fun LoginScreen(
             }
         }
 
-        // ─── Toast at bottom ───
+        // ── Toast ──
         AnimatedVisibility(
             visible = toastMessage != null,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 35.dp)
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 35.dp)
         ) {
-            if (toastMessage != null) {
-                AlHosanToast(message = toastMessage!!)
-            }
+            if (toastMessage != null) AlHosanToast(message = toastMessage!!)
+        }
+
+        // ── Floating header — LAST = highest z-order, always on top of card ──
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            floatingHeader()
         }
     }
 }
 
-/**
- * Tabs row - matching HTML reference's .tabs design
- */
 @Composable
 private fun TabsRow(
     selectedMode: CheckMode,
@@ -269,18 +232,14 @@ private fun TabsRow(
             .padding(6.dp),
         horizontalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        // Xtream tab
         Box(
             modifier = Modifier
-                .weight(1f)
-                .height(44.dp)
+                .weight(1f).height(44.dp)
                 .then(
-                    if (selectedMode == CheckMode.XTREAM) Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(GoldGradientBrush)
-                    else Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color.Transparent)
+                    if (selectedMode == CheckMode.XTREAM)
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(GoldGradientBrush)
+                    else
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(Color.Transparent)
                 )
                 .clickable { onModeChange(CheckMode.XTREAM) },
             contentAlignment = Alignment.Center
@@ -288,23 +247,17 @@ private fun TabsRow(
             Text(
                 text = "Xtream",
                 color = if (selectedMode == CheckMode.XTREAM) Color.Black else Color(0xFFA0A0A0),
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontWeight = FontWeight.Bold, fontSize = 15.sp
             )
         }
-
-        // M3U Link tab
         Box(
             modifier = Modifier
-                .weight(1f)
-                .height(44.dp)
+                .weight(1f).height(44.dp)
                 .then(
-                    if (selectedMode == CheckMode.M3U) Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(GoldGradientBrush)
-                    else Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color.Transparent)
+                    if (selectedMode == CheckMode.M3U)
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(GoldGradientBrush)
+                    else
+                        Modifier.clip(RoundedCornerShape(14.dp)).background(Color.Transparent)
                 )
                 .clickable { onModeChange(CheckMode.M3U) },
             contentAlignment = Alignment.Center
@@ -312,26 +265,19 @@ private fun TabsRow(
             Text(
                 text = "M3U Link",
                 color = if (selectedMode == CheckMode.M3U) Color.Black else Color(0xFFA0A0A0),
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+                fontWeight = FontWeight.Bold, fontSize = 15.sp
             )
         }
     }
 }
 
-/**
- * Paste from clipboard - matching HTML reference's vPaste() function
- */
 private fun pasteFromClipboard(context: Context, onPaste: (String) -> Unit) {
     try {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = clipboard.primaryClip
         if (clip != null && clip.itemCount > 0) {
             val text = clip.getItemAt(0)?.text?.toString()?.trim() ?: ""
-            if (text.isNotEmpty()) {
-                onPaste(text)
-                return
-            }
+            if (text.isNotEmpty()) onPaste(text)
         }
     } catch (_: Exception) { }
 }
