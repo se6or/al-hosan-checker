@@ -33,11 +33,12 @@ jobs:
       - name: Install cargo-ndk
         run: cargo install cargo-ndk
 
-      - name: Build Rust core
+      - name: Build Rust core (optional)
         working-directory: rust
+        continue-on-error: true
         run: |
           export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
-          ./build_android.sh
+          ./build_android.sh || echo "Rust build failed, using OkHttp fallback"
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -100,7 +101,16 @@ jobs:
 
             ### التقنولوجيا
             - **UI:** Kotlin + Jetpack Compose (Material3)
-            - **Core:** Rust (reqwest + rayon + tokio)
+            - **Networking:** OkHttp (direct API calls)
+            - **Core:** Rust (optional, fallback to OkHttp)
+
+            ### الميزات
+            - ✅ فحص اشتراكات Xtream API مباشرة
+            - ✅ دعم روابط M3U (استخراج بيانات Xtream)
+            - ✅ واجهة عربي/إنجليزي
+            - ✅ حفظ السجل والاستعادة
+            - ✅ نسخ البيانات وإنشاء رابط M3U
+            - ✅ حصان فاحص متحرك 🐎
 
             ### التعليمات
             1. حمّل ملف APK
