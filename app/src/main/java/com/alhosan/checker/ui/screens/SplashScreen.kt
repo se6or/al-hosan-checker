@@ -6,6 +6,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -25,12 +26,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import com.alhosan.checker.R
+import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.Gold
+import kotlinx.coroutines.delay
 
 /**
  * In-app splash screen.
+ *
  * The system splash (core-splashscreen) already shows the logo instantly on tap.
- * This composable provides a brief branded pause before the login screen.
+ * This composable provides a 1-second branded pause before the login screen,
+ * with a gently pulsing logo and the app title.
+ *
+ * Logo size reduced to 140dp (was 200dp) per user request.
+ * Delay is now 1000ms (1 full second) — not a fraction of a second.
  */
 @Composable
 fun SplashScreen(
@@ -47,14 +55,16 @@ fun SplashScreen(
         label = "pulseLogo"
     )
 
-    // Navigate immediately — system splash already showed the logo.
-    // Keep a minimal delay so the fade-in animation is visible.
+    // Show the splash for exactly 1 full second before navigating to login.
     LaunchedEffect(Unit) {
+        delay(1000L)
         onSplashComplete()
     }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Black),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -64,7 +74,7 @@ fun SplashScreen(
                 painter = painterResource(id = R.drawable.ic_alhosan_logo),
                 contentDescription = "الحصان",
                 modifier = Modifier
-                    .size(200.dp)
+                    .size(140.dp)  // smaller than before (was 200dp)
                     .scale(scale),
                 contentScale = ContentScale.Fit
             )
