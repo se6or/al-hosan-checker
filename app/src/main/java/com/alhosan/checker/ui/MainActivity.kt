@@ -145,15 +145,12 @@ fun AlHosanApp() {
             composable("result") {
                 ResultScreen(
                     onBack = {
-                        // Don't resetState here — popBackStack returns to the
-                        // previous screen (history or login). The state will be
-                        // reset when a fresh check starts or when the user navigates
-                        // back to login explicitly.
-                        //
-                        // Resetting here caused a bug: when restoring from history
-                        // and pressing back, the state was cleared which made
-                        // popBackStack skip history and jump straight to login.
+                        // Pop back to the previous screen (history or login),
+                        // THEN reset the state. Order matters: pop first so the
+                        // back stack is correct, then clear the subscription so
+                        // the next visit to result shows a fresh state.
                         navController.popBackStack()
+                        viewModel.resetState()
                     },
                     viewModel = viewModel
                 )

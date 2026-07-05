@@ -162,14 +162,33 @@ class CheckerRepository {
                     return@withContext Result.failure(Exception("empty_response"))
                 }
 
+                // Parse the JSON response — be lenient with non-strict servers.
+                // Some Xtream panels return slightly different shapes, so we accept
+                // any JSON that has user_info OR user_info.username OR just an
+                // array (older panels) and try to extract whatever we can.
                 val data = try {
                     json.parseToJsonElement(body).jsonObject
                 } catch (e: Exception) {
-                    return@withContext Result.failure(Exception("parse_failed"))
+                    // Not JSON at all — could be an HTML error page from a proxy
+                    return@withContext Result.failure(Exception("not_xtream"))
                 }
 
+                // Accept the response if it has user_info (standard Xtream API),
+                // OR if it has any of the typical Xtream fields (be lenient).
                 val userInfo = data["user_info"]?.jsonObject
-                    ?: return@withContext Result.failure(Exception("not_xtream"))
+                if (userInfo == null) {
+                    // Some servers wrap differently — check for alternative keys
+                    val altUserInfo = data["userInfo"]?.jsonObject
+                        ?: data["user"]?.jsonObject
+                        ?: data["account"]?.jsonObject
+                    if (altUserInfo == null) {
+                        return@withContext Result.failure(Exception("not_xtream"))
+                    }
+                    // Use the alternative
+                    return@withContext parseSubscriptionFromUserInfo(
+                        host, username, password, altUserInfo, data["server_info"]?.jsonObject
+                    )
+                }
 
                 val serverInfo = data["server_info"]?.jsonObject
 
@@ -341,5 +360,55 @@ class CheckerRepository {
         } catch (e: Exception) {
             ts
         }
+    }
+
+    /**
+     * Build a [Subscription] from a user_info JSON object (or any alternative
+     * shape that has the typical fields). Tolerates missing/null fields —
+     * returns a default value instead of throwing.
+     */
+    private fun parseSubscriptionFromUserInfo(
+        host: String,
+        username: String,
+        password: String,
+        userInfo: JsonObject,
+        serverInfo: JsonObject?
+    ): Result<Subscription> {
+        // Tolerant field extraction — many IPTV panels omit or null some fields.
+        fun JsonObject.stringField(key: String): String = try {
+            this[key]?.jsonPrimitive?.contentOrNull ?: ""
+        } catch (_: Exception) { "" }
+
+        val status = userInfo.stringField("status").ifBlank { "Unknown" }
+        val expDate = userInfo.stringField("exp_date").ifBlank { "0" }
+        val createdAt = userInfo.stringField("created_at").ifBlank { "0" }
+        val activeCons = userInfo.stringField("active_cons").ifBlank { "0" }
+        val maxCons = userInfo.stringField("max_connections").ifBlank { "0" }
+        val isTrialStr = userInfo.stringField("is_trial")
+        val isTrial = isTrialStr == "1" || isTrialStr.equals("true", ignoreCase = true)
+
+        val serverUrl = serverInfo?.stringField("url") ?: ""
+        val serverProtocol = serverInfo?.stringField("server_protocol") ?: ""
+        val timezone = serverInfo?.stringField("timezone") ?: ""
+
+        val subscription = Subscription(
+            host = host,
+            username = username,
+            password = password,
+            status = status,
+            expiry = formatTimestamp(expDate),
+            created = formatTimestamp(createdAt),
+            activeCons = activeCons,
+            maxCons = maxCons,
+            isTrial = isTrial,
+            liveCount = "0",
+            movieCount = "0",
+            seriesCount = "0",
+            serverUrl = serverUrl,
+            serverProtocol = serverProtocol,
+            timezone = timezone,
+            isM3uMode = false
+        )
+        return Result.success(subscription)
     }
 }

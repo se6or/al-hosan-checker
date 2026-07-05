@@ -32,6 +32,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -102,12 +105,26 @@ fun LoginScreen(
         (context as? Activity)?.finish()
     }
 
+    // Track whether this login screen instance initiated the check.
+    // Without this, returning from history -> login would see the still-set
+    // Success state and immediately jump back to result.
+    var loginInitiatedCheck by remember { mutableStateOf(false) }
+
     LaunchedEffect(state) {
         when (state) {
-            is CheckerState.Success -> onResultReady()
+            is CheckerState.Success -> {
+                // Only navigate to result if THIS login screen started the check.
+                if (loginInitiatedCheck) {
+                    loginInitiatedCheck = false
+                    onResultReady()
+                }
+            }
             is CheckerState.Error -> {
-                viewModel.showToast((state as CheckerState.Error).message)
-                viewModel.resetState()
+                if (loginInitiatedCheck) {
+                    viewModel.showToast((state as CheckerState.Error).message)
+                    viewModel.resetState()
+                    loginInitiatedCheck = false
+                }
             }
             else -> {}
         }
@@ -190,7 +207,12 @@ fun LoginScreen(
                             AlHosanMainButton(
                                 text = lang.check,
                                 icon = Icons.Default.Search,
-                                onClick = viewModel::checkSubscription,
+                                onClick = {
+                                    // Mark that THIS login screen initiated the check,
+                                    // so the LaunchedEffect above knows to navigate to result.
+                                    loginInitiatedCheck = true
+                                    viewModel.checkSubscription()
+                                },
                                 isLoading = isChecking,
                                 enabled = !isChecking
                             )
