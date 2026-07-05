@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -33,12 +35,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alhosan.checker.R
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckMode
 import com.alhosan.checker.data.model.CheckerState
@@ -46,8 +52,9 @@ import com.alhosan.checker.ui.HeaderSpacer
 import com.alhosan.checker.ui.ScreenHeader
 import com.alhosan.checker.ui.components.AlHosanInputRow
 import com.alhosan.checker.ui.components.AlHosanMainButton
-import com.alhosan.checker.ui.components.AlHosanProgressBar
 import com.alhosan.checker.ui.components.AlHosanToast
+import com.alhosan.checker.ui.components.ShinyText
+import com.alhosan.checker.ui.components.StaggeredColumn
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.CardBg
@@ -62,10 +69,15 @@ import com.alhosan.checker.ui.i18n.*
  * LAYOUT (top → bottom):
  *   1. ScreenHeader Row (back-slot empty + language toggle)
  *   2. HeaderSpacer (12dp breathing space)
- *   3. Card with tabs + inputs + buttons
+ *   3. Card with tabs + inputs + START CHECK button
+ *   4. 16dp breathing space (outside the card)
+ *   5. HISTORY button — OUTSIDE the card, separate, full-width below
  *
- * No overlays — the header is a normal layout slot ABOVE the card, so the
- * language button is always tappable and the card has clear breathing space.
+ * While checking, a fullscreen blurred-black overlay is shown with the
+ * horse logo + shiny-text label (instead of an inline progress bar).
+ *
+ * Staggered fade-in (reactbits.dev staggered-menu effect) cascades the
+ * card content on first appearance using the app's gold theme colors.
  */
 @Composable
 fun LoginScreen(
@@ -82,8 +94,6 @@ fun LoginScreen(
     val lang by viewModel.lang.collectAsState()
     val state by viewModel.state.collectAsState()
     val isChecking by viewModel.isChecking.collectAsState()
-    val progressPhase by viewModel.progressPhase.collectAsState()
-    val progressPercent by viewModel.progressPercent.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
 
     val context = LocalContext.current
@@ -116,17 +126,16 @@ fun LoginScreen(
             .background(Black)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // ── Header Row (above the card, real layout slot — not overlay) ──
+            // ── Header Row (above the card) ──
             ScreenHeader(
                 showBack = false,
                 onBack = {},
                 onLangToggle = viewModel::toggleLang
             )
 
-            // ── Breathing space between header and card ──
             HeaderSpacer()
 
-            // ── Card with content ──
+            // ── Card with tabs + inputs + start-check button ──
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -136,82 +145,69 @@ fun LoginScreen(
                 shape = RoundedCornerShape(28.dp)
             ) {
                 Column(modifier = Modifier.padding(24.dp, 20.dp)) {
-                    TabsRow(
-                        selectedMode = checkMode,
-                        onModeChange = viewModel::setCheckMode,
-                        lang = lang
-                    )
-
-                    Spacer(modifier = Modifier.height(22.dp))
-
-                    if (checkMode == CheckMode.XTREAM) {
-                        AlHosanInputRow(
-                            value = host,
-                            onValueChange = viewModel::updateHost,
-                            placeholder = lang.hPl,
-                            onPaste = { pasteFromClipboard(context, viewModel::updateHost) }
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        AlHosanInputRow(
-                            value = username,
-                            onValueChange = viewModel::updateUsername,
-                            placeholder = lang.uPl,
-                            onPaste = { pasteFromClipboard(context, viewModel::updateUsername) }
-                        )
-                        Spacer(modifier = Modifier.height(14.dp))
-                        AlHosanInputRow(
-                            value = password,
-                            onValueChange = viewModel::updatePassword,
-                            placeholder = lang.pPl,
-                            isPassword = true,
-                            obscurePassword = obscurePassword,
-                            onTogglePassword = viewModel::togglePasswordVisibility,
-                            onPaste = { pasteFromClipboard(context, viewModel::updatePassword) }
-                        )
-                    } else {
-                        AlHosanInputRow(
-                            value = m3uLink,
-                            onValueChange = viewModel::updateM3uLink,
-                            placeholder = lang.mPl,
-                            onPaste = { pasteFromClipboard(context, viewModel::updateM3uLink) }
-                        )
-                    }
-
-                    AnimatedVisibility(visible = isChecking, enter = fadeIn(), exit = fadeOut()) {
-                        Column {
-                            Spacer(modifier = Modifier.height(20.dp))
-                            AlHosanProgressBar(
-                                progress = progressPercent / 100f,
-                                label = when (progressPhase) {
-                                    com.alhosan.checker.data.model.ProgressPhase.CONNECTING -> lang.prog1
-                                    com.alhosan.checker.data.model.ProgressPhase.VERIFYING  -> lang.prog2
-                                    com.alhosan.checker.data.model.ProgressPhase.COUNTING   -> lang.prog3
-                                    com.alhosan.checker.data.model.ProgressPhase.FINALIZING -> lang.prog4
-                                    else -> lang.prog1
-                                }
+                    // Staggered reveal of the card content (staggered-menu effect)
+                    StaggeredColumn(perItemDelayMs = 50) {
+                        Item { TabsRow(checkMode, viewModel::setCheckMode, lang) }
+                        Item {
+                            Spacer(modifier = Modifier.height(22.dp))
+                            if (checkMode == CheckMode.XTREAM) {
+                                AlHosanInputRow(
+                                    value = host,
+                                    onValueChange = viewModel::updateHost,
+                                    placeholder = lang.hPl,
+                                    onPaste = { pasteFromClipboard(context, viewModel::updateHost) }
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                AlHosanInputRow(
+                                    value = username,
+                                    onValueChange = viewModel::updateUsername,
+                                    placeholder = lang.uPl,
+                                    onPaste = { pasteFromClipboard(context, viewModel::updateUsername) }
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                AlHosanInputRow(
+                                    value = password,
+                                    onValueChange = viewModel::updatePassword,
+                                    placeholder = lang.pPl,
+                                    isPassword = true,
+                                    obscurePassword = obscurePassword,
+                                    onTogglePassword = viewModel::togglePasswordVisibility,
+                                    onPaste = { pasteFromClipboard(context, viewModel::updatePassword) }
+                                )
+                            } else {
+                                AlHosanInputRow(
+                                    value = m3uLink,
+                                    onValueChange = viewModel::updateM3uLink,
+                                    placeholder = lang.mPl,
+                                    onPaste = { pasteFromClipboard(context, viewModel::updateM3uLink) }
+                                )
+                            }
+                        }
+                        // Start-check button — with extra breathing space above so it
+                        // doesn't overlap the password field's border.
+                        Item {
+                            Spacer(modifier = Modifier.height(28.dp))
+                            AlHosanMainButton(
+                                text = lang.check,
+                                icon = Icons.Default.Search,
+                                onClick = viewModel::checkSubscription,
+                                isLoading = isChecking,
+                                enabled = !isChecking
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
-
-                    AlHosanMainButton(
-                        text = lang.check,
-                        icon = Icons.Default.Search,
-                        onClick = viewModel::checkSubscription,
-                        isLoading = isChecking,
-                        enabled = !isChecking
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    AlHosanMainButton(
-                        text = lang.hist,
-                        icon = Icons.Default.History,
-                        onClick = onHistoryClick,
-                        isSubButton = true
-                    )
                 }
             }
+
+            // ── HISTORY button — OUTSIDE the card, below it with breathing space ──
+            Spacer(modifier = Modifier.height(16.dp))
+            AlHosanMainButton(
+                text = lang.hist,
+                icon = Icons.Default.History,
+                onClick = onHistoryClick,
+                isSubButton = true,
+                modifier = Modifier.padding(horizontal = 14.dp)
+            )
         }
 
         // ── Toast ──
@@ -222,6 +218,52 @@ fun LoginScreen(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 35.dp)
         ) {
             if (toastMessage != null) AlHosanToast(message = toastMessage!!)
+        }
+
+        // ── Checking overlay: blurred black bg + horse logo + shiny text ──
+        // Replaces the inline progress bar. Cover the entire screen so the user
+        // sees a clean focused "checking" state.
+        AnimatedVisibility(
+            visible = isChecking,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            CheckingOverlay(lang = lang)
+        }
+    }
+}
+
+/**
+ * Fullscreen overlay shown while a subscription check is running.
+ * - Semi-transparent black background with a blur-like darkening
+ * - Small horse logo centered
+ * - Shiny-text "الفحص جارٍ..." with animated gold gradient sweep
+ */
+@Composable
+private fun CheckingOverlay(lang: AppLang) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000)),  // 80% black, simulates blurred backdrop
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_alhosan_logo),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            ShinyText(
+                text = if (lang == AppLang.AR) "الفحص جارٍ..." else "Checking...",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
         }
     }
 }

@@ -4,8 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -91,10 +94,35 @@ fun AlHosanApp() {
         NavHost(
             navController = navController,
             startDestination = "splash",
-            enterTransition = { fadeIn(androidx.compose.animation.core.tween(220)) },
-            exitTransition = { fadeOut(androidx.compose.animation.core.tween(180)) },
-            popEnterTransition = { fadeIn(androidx.compose.animation.core.tween(220)) },
-            popExitTransition = { fadeOut(androidx.compose.animation.core.tween(180)) }
+            // Staggered-style screen transitions (inspired by reactbits.dev
+            // staggered-menu). Forward navigation: new screen slides in from
+            // top + slight horizontal offset, with a quick fade.
+            // Backward navigation: current screen slides out to top + fade.
+            // Both use the same direction so the effect is consistent.
+            enterTransition = {
+                slideInVertically(
+                    initialOffsetY = { -it / 6 },
+                    animationSpec = tween(380)
+                ) + fadeIn(tween(280))
+            },
+            exitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { it / 12 },
+                    animationSpec = tween(280)
+                ) + fadeOut(tween(220))
+            },
+            popEnterTransition = {
+                slideInVertically(
+                    initialOffsetY = { it / 12 },
+                    animationSpec = tween(380)
+                ) + fadeIn(tween(280))
+            },
+            popExitTransition = {
+                slideOutVertically(
+                    targetOffsetY = { -it / 6 },
+                    animationSpec = tween(280)
+                ) + fadeOut(tween(220))
+            }
         ) {
             composable("splash") {
                 SplashScreen(

@@ -48,6 +48,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +61,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -727,3 +729,117 @@ private fun ContentCountItem(label: String, count: String, isLoading: Boolean) {
         }
     }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+ * Shiny Text — animated gold gradient that sweeps across the text.
+ * Inspired by https://reactbits.dev/text-animations/shiny-text
+ *
+ * Uses Brush.linearGradient with an animated start offset so a bright
+ * gold highlight continuously moves left-to-right across the glyphs.
+ * ═════════════════════════════════════════════════════════════════ */
+@Composable
+fun ShinyText(
+    text: String,
+    modifier: Modifier = Modifier,
+    fontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
+    fontWeight: FontWeight = FontWeight.ExtraBold
+) {
+    val transition = rememberInfiniteTransition(label = "shiny")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shinyProgress"
+    )
+
+    // The brush sweeps from -1..2 (off-screen left to off-screen right) so the
+    // bright highlight is only visible while passing through the text.
+    val sweep = progress * 3f - 1f
+    val colors = listOf(
+        Gold,                       // dim gold
+        GoldLight,                  // bright gold
+        Color.White,                // peak highlight
+        GoldLight,                  // bright gold
+        Gold                        // dim gold
+    )
+    val brush = Brush.linearGradient(
+        colors = colors,
+        start = Offset(sweep * 600f, 0f),
+        end = Offset(sweep * 600f + 200f, 40f)
+    )
+
+    Text(
+        text = text,
+        modifier = modifier,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = Color.White,
+        style = androidx.compose.ui.text.TextStyle(brush = brush)
+    )
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * StaggeredAppear — child appears with a slight delay + slide-up + fade.
+ * Inspired by https://reactbits.dev/components/staggered-menu
+ *
+ * Wrap a list of children with StaggeredColumn and each one will animate
+ * in with a small delay based on its index, producing a cascading reveal
+ * that matches the staggered-menu effect from reactbits.dev.
+ * ═════════════════════════════════════════════════════════════════ */
+@Composable
+fun StaggeredColumn(
+    modifier: Modifier = Modifier,
+    perItemDelayMs: Int = 60,
+    content: @Composable StaggeredScope.() -> Unit
+) {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        // Trigger the staggered reveal on first composition
+        visible = true
+    }
+    Column(modifier = modifier) {
+        val scope = StaggeredScopeInstance(visible, perItemDelayMs)
+        scope.content()
+    }
+}
+
+interface StaggeredScope {
+    @Composable
+    fun Item(content: @Composable () -> Unit)
+}
+
+private class StaggeredScopeInstance(
+    private val visible: Boolean,
+    private val perItemDelayMs: Int
+) : StaggeredScope {
+    private var index = 0
+
+    @Composable
+    override fun Item(content: @Composable () -> Unit) {
+        val i = index++
+        val delayMs = i * perItemDelayMs
+        val alpha by animateFloatAsState(
+            targetValue = if (visible) 1f else 0f,
+            animationSpec = tween(durationMillis = 380, delayMillis = delayMs),
+            label = "staggerAlpha_$i"
+        )
+        val offsetY by animateFloatAsState(
+            targetValue = if (visible) 0f else 24f,
+            animationSpec = tween(durationMillis = 380, delayMillis = delayMs),
+            label = "staggerOffset_$i"
+        )
+        Box(
+            modifier = Modifier
+                .graphicsLayer {
+                    this.alpha = alpha
+                    this.translationY = offsetY
+                }
+        ) {
+            content()
+        }
+    }
+}
+
