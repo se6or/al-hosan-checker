@@ -21,7 +21,7 @@ val AppLang.splash: String get() = when (this) {
 
 // Check button
 val AppLang.check: String get() = when (this) {
-    AppLang.AR -> "بدء فحص الحصان"
+    AppLang.AR -> "بدء الفحص"
     AppLang.EN -> "START CHECK"
 }
 
