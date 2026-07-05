@@ -831,8 +831,12 @@ private class StaggeredScopeInstance(
             animationSpec = tween(durationMillis = 380, delayMillis = delayMs),
             label = "staggerOffset_$i"
         )
-        Box(
+        // IMPORTANT: Column (not Box) so children stack VERTICALLY.
+        // Box would stack them on top of each other — that's the bug
+        // that caused host/username/password to overlap.
+        Column(
             modifier = Modifier
+                .fillMaxWidth()
                 .graphicsLayer {
                     this.alpha = alpha
                     this.translationY = offsetY
