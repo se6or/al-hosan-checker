@@ -26,17 +26,16 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import com.alhosan.checker.R
 import com.alhosan.checker.ui.theme.Gold
-import kotlinx.coroutines.delay
 
 /**
- * Splash screen - matching HTML reference's #scr-splash
- * Shows animated horse logo with pulsing animation, then auto-navigates to login.
+ * In-app splash screen.
+ * The system splash (core-splashscreen) already shows the logo instantly on tap.
+ * This composable provides a brief branded pause before the login screen.
  */
 @Composable
 fun SplashScreen(
     onSplashComplete: () -> Unit
 ) {
-    // Pulsing animation matching HTML reference's @keyframes pulseLogo
     val infiniteTransition = rememberInfiniteTransition(label = "splash")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -48,9 +47,9 @@ fun SplashScreen(
         label = "pulseLogo"
     )
 
-    // Auto-navigate after 2.5 seconds
+    // Navigate immediately — system splash already showed the logo.
+    // Keep a minimal delay so the fade-in animation is visible.
     LaunchedEffect(Unit) {
-        delay(2500)
         onSplashComplete()
     }
 
@@ -61,7 +60,6 @@ fun SplashScreen(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Animated horse logo
             Image(
                 painter = painterResource(id = R.drawable.ic_alhosan_logo),
                 contentDescription = "الحصان",
@@ -73,7 +71,6 @@ fun SplashScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Splash title
             Text(
                 text = "محرك الحصان الفاحص",
                 color = Gold,
