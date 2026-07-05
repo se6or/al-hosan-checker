@@ -1,7 +1,9 @@
 package com.alhosan.checker.ui.screens
 
+import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -80,6 +82,12 @@ fun LoginScreen(
     val isCounting by viewModel.isCounting.collectAsState()
 
     val context = LocalContext.current
+
+    // Handle system back button on the login screen — exit the app.
+    // (Matches the HTML reference's handleAndroidBack behavior for scr-login.)
+    BackHandler(enabled = true) {
+        (context as? Activity)?.finish()
+    }
 
     // Handle state changes
     LaunchedEffect(state) {
