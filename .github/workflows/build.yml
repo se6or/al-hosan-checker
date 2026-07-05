@@ -59,17 +59,13 @@ jobs:
         run: |
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           if [ -z "$APK_FILE" ]; then
-            echo "❌ No APK found!"
+            echo "No APK found!"
             exit 1
           fi
           echo "APK: $APK_FILE"
-          
-          # Verify signing
           jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -5
-          
-          # Rename with clean name
           mv "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker.apk"
-          echo "✅ APK signed and renamed successfully"
+          echo "APK signed and renamed successfully"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -77,7 +73,6 @@ jobs:
           name: al-hosan-checker-release
           path: app/build/outputs/apk/release/*.apk
 
-      # ─── Auto Release ──────────────────────────────
       - name: Generate version info
         id: version
         run: |
@@ -90,9 +85,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.0"
-          name: "🐎 الحصان الفاحص v1.0.0"
+          name: "AlHosan Checker v1.0.0"
           body: |
-            ## 🐎 الحصان الفاحص - AlHosan Checker
+            ## AlHosan Checker — الحصان الفاحص
 
             **الإصدار:** v1.0.0 | **رقم البناء:** #${{ steps.version.outputs.build_number }}
             **تاريخ البناء:** ${{ steps.version.outputs.date }}
@@ -104,12 +99,13 @@ jobs:
             - **Core:** Rust (optional, fallback to OkHttp)
 
             ### الميزات
-            - ✅ فحص اشتراكات Xtream API مباشرة
-            - ✅ دعم روابط M3U (استخراج بيانات Xtream)
-            - ✅ واجهة عربي/إنجليزي
-            - ✅ حفظ السجل والاستعادة
-            - ✅ نسخ البيانات وإنشاء رابط M3U
-            - ✅ حصان فاحص متحرك 🐎
+            - فحص اشتراكات Xtream API مباشرة
+            - دعم روابط M3U (استخراج بيانات Xtream)
+            - شاشة بداية فورية (zero-delay splash)
+            - واجهة عربي/إنجليزي
+            - حفظ السجل والاستعادة
+            - نسخ البيانات وإنشاء رابط M3U
+            - تصدير النتيجة كصورة PNG
 
             ### التعليمات
             1. حمّل ملف APK
