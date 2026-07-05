@@ -68,8 +68,7 @@ jobs:
           jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -5
           
           # Rename with clean name
-          BUILD_NUMBER=${{ github.run_number }}
-          mv "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker-v1.0.0-build${BUILD_NUMBER}.apk"
+          mv "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker.apk"
           echo "✅ APK signed and renamed successfully"
 
       - name: Upload APK artifact
@@ -90,8 +89,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v1.0.0-build${{ steps.version.outputs.build_number }}"
-          name: "🐎 الحصان الفاحص v1.0.0 - بناء #${{ steps.version.outputs.build_number }}"
+          tag_name: "v1.0.0"
+          name: "🐎 الحصان الفاحص v1.0.0"
           body: |
             ## 🐎 الحصان الفاحص - AlHosan Checker
 
