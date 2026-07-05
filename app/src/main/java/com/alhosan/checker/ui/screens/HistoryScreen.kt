@@ -254,7 +254,7 @@ private fun HistoryItemRow(
             // Host + username
             Column(
                 modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.Start
+                horizontalAlignment = Alignment.Start
             ) {
                 Text(
                     text = item.host.take(35) + if (item.host.length > 35) "…" else "",
