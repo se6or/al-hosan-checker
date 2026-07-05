@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.OutputStream
 
 /**
@@ -20,21 +22,33 @@ import java.io.OutputStream
  * device's Pictures/AlHosan directory via MediaStore so it appears in
  * the Gallery app on Android 10+ (no permission needed) and uses
  * legacy WRITE_EXTERNAL_STORAGE only on Android 9 and below.
+ *
+ * NOTE: `GraphicsLayer.toImageBitmap()` is a suspend function in Compose UI 1.7+,
+ * so callers must invoke `saveLayerToGallery` from a coroutine.
  */
 object ImageExporter {
 
     /**
      * Save a Compose GraphicsLayer as a PNG image to the gallery.
+     * MUST be called from a coroutine (suspend function).
+     *
+     * toImageBitmap() must run on the calling dispatcher (typically Main,
+     * because it interacts with the rendering pipeline). The file write is
+     * moved to Dispatchers.IO.
      */
     @OptIn(ExperimentalComposeUiApi::class)
-    fun saveLayerToGallery(
+    suspend fun saveLayerToGallery(
         context: Context,
         layer: GraphicsLayer,
         fileName: String = "HORSE_PRO_${System.currentTimeMillis()}"
     ): Boolean {
         return try {
+            // toImageBitmap() is suspend and may need to interact with the rendering thread
             val bitmap = layer.toImageBitmap().asAndroidBitmap()
-            saveBitmapToGallery(context, bitmap, fileName)
+            // File IO on the IO dispatcher
+            withContext(Dispatchers.IO) {
+                saveBitmapToGallery(context, bitmap, fileName)
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             false

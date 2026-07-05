@@ -39,14 +39,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -66,10 +65,8 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.util.ImageExporter
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Result screen - matching HTML reference's #scr-result
@@ -93,8 +90,9 @@ fun ResultScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // GraphicsLayer used to capture the result card as a bitmap (replaces html2canvas)
-    val graphicsLayer = remember { GraphicsLayer() }
+    // GraphicsLayer used to capture the result card as a bitmap (replaces html2canvas).
+    // rememberGraphicsLayer() is the Compose 1.7+ public API (constructor is internal).
+    val graphicsLayer = rememberGraphicsLayer()
 
     // Handle system back button / gesture — matches HTML's handleAndroidBack.
     // onBack already calls resetState + popBackStack, so we don't double-call here.
@@ -308,20 +306,20 @@ fun ResultScreen(
                     )
                 }
 
-                // Export as image button — captures the GraphicsLayer and saves PNG to gallery
+                // Export as image button — captures the GraphicsLayer and saves PNG to gallery.
+                // saveLayerToGallery is suspend (toImageBitmap is suspend in Compose 1.7+),
+                // and it internally moves file IO to Dispatchers.IO.
                 Box(modifier = Modifier.weight(if (isFromHistory) 1.5f else 1f)) {
                     AlHosanMainButton(
                         text = lang.btnE,
                         icon = Icons.Default.PhotoCamera,
                         onClick = {
                             scope.launch {
-                                val success = withContext(Dispatchers.IO) {
-                                    ImageExporter.saveLayerToGallery(
-                                        context = context,
-                                        layer = graphicsLayer,
-                                        fileName = "HORSE_PRO_${System.currentTimeMillis()}"
-                                    )
-                                }
+                                val success = ImageExporter.saveLayerToGallery(
+                                    context = context,
+                                    layer = graphicsLayer,
+                                    fileName = "HORSE_PRO_${System.currentTimeMillis()}"
+                                )
                                 viewModel.showToast(
                                     if (success) lang.tExportOk else lang.tExportFail
                                 )
