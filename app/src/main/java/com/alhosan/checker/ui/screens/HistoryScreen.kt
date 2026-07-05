@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.HistoryItem
 import com.alhosan.checker.ui.components.AlHosanToast
-import com.alhosan.checker.ui.i18n.Strings
+import com.alhosan.checker.ui.i18n.Strings.*
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.GreenActive

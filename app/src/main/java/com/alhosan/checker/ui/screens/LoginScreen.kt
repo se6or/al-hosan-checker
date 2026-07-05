@@ -8,7 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.clip
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +53,7 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.GoldGradientBrush
 import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.viewmodel.CheckerViewModel
+import com.alhosan.checker.ui.i18n.Strings.*
 
 /**
  * Login/Check screen - matching HTML reference's #scr-login
