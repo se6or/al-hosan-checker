@@ -341,6 +341,7 @@ fun ResultScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
         }
+        } // end outer scrollable Column
 
         // ─── Toast at bottom ───
         AnimatedVisibility(
