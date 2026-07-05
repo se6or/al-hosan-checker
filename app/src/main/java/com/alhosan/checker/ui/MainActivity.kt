@@ -6,12 +6,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,35 +17,27 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.alhosan.checker.R
-import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.ui.screens.HistoryScreen
 import com.alhosan.checker.ui.screens.LoginScreen
 import com.alhosan.checker.ui.screens.ResultScreen
@@ -62,11 +48,9 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.ui.theme.AlHosanTheme
 import com.alhosan.checker.viewmodel.CheckerViewModel
-import com.alhosan.checker.ui.i18n.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Must be called before super.onCreate() — shows splash instantly on tap
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -79,9 +63,22 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Main app composable.
- * Splash → Login → Result / History.
- * Fade-only transitions (no slide) to avoid overlap glitches during system back gesture.
+ * Main app composable. Splash → Login → Result / History.
+ * Fade-only transitions to avoid overlap glitches during system back gesture.
+ *
+ * LAYOUT FIX (this iteration):
+ *   The previous "floating overlay" buttons kept ending up *behind* the Card
+ *   because Compose Card has an elevation shadow that paints above siblings.
+ *   Instead of overlay hacks, each screen now lays out a simple header Row
+ *   ABOVE the card in a normal Column flow:
+ *
+ *       [statusBar padding]
+ *       [header Row: back btn (left) ... lang btn (right)]   ← real layout slot
+ *       [12dp breathing space]
+ *       [Card with content]
+ *
+ *   This guarantees the back button is always tappable (never behind the card)
+ *   and gives the requested breathing space between header and card.
  */
 @Composable
 fun AlHosanApp() {
@@ -94,10 +91,10 @@ fun AlHosanApp() {
         NavHost(
             navController = navController,
             startDestination = "splash",
-            enterTransition = { fadeIn(tween(220)) },
-            exitTransition = { fadeOut(tween(180)) },
-            popEnterTransition = { fadeIn(tween(220)) },
-            popExitTransition = { fadeOut(tween(180)) }
+            enterTransition = { fadeIn(androidx.compose.animation.core.tween(220)) },
+            exitTransition = { fadeOut(androidx.compose.animation.core.tween(180)) },
+            popEnterTransition = { fadeIn(androidx.compose.animation.core.tween(220)) },
+            popExitTransition = { fadeOut(androidx.compose.animation.core.tween(180)) }
         ) {
             composable("splash") {
                 SplashScreen(
@@ -113,13 +110,7 @@ fun AlHosanApp() {
                 LoginScreen(
                     onResultReady = { navController.navigate("result") },
                     onHistoryClick = { navController.navigate("history") },
-                    viewModel = viewModel,
-                    floatingHeader = {
-                        FloatingLanguageButton(
-                            onClick = viewModel::toggleLang,
-                            modifier = Modifier.statusBarsPadding()
-                        )
-                    }
+                    viewModel = viewModel
                 )
             }
 
@@ -129,16 +120,7 @@ fun AlHosanApp() {
                         viewModel.resetState()
                         navController.popBackStack()
                     },
-                    viewModel = viewModel,
-                    floatingHeader = {
-                        FloatingBackButton(
-                            onClick = {
-                                viewModel.resetState()
-                                navController.popBackStack()
-                            },
-                            modifier = Modifier.statusBarsPadding()
-                        )
-                    }
+                    viewModel = viewModel
                 )
             }
 
@@ -146,35 +128,81 @@ fun AlHosanApp() {
                 HistoryScreen(
                     onBack = { navController.popBackStack() },
                     onRestore = { navController.navigate("result") },
-                    viewModel = viewModel,
-                    floatingHeader = {
-                        FloatingBackButton(
-                            onClick = { navController.popBackStack() },
-                            modifier = Modifier.statusBarsPadding()
-                        )
-                    }
+                    viewModel = viewModel
                 )
             }
         }
+    }
+}
 
-        // Global running-horse indicator shown while checking
-        if (isChecking) {
-            RunningHorseFloating(lang = lang, modifier = Modifier.statusBarsPadding())
+/* ────────────────────────────────────────────────────────────────────────────
+ * Header components — used inline by each screen, NOT as overlays.
+ * They live in a normal Column/Row flow above the card, so they're always
+ * tappable and never hidden behind the Card's elevation shadow.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The single header Row shown above the card on every screen.
+ *
+ * Layout (RTL aware):
+ *   - Start edge: back button (circular, 40dp). On login screen this slot is empty
+ *     and a leading spacer keeps things balanced.
+ *   - End edge: language toggle button (circular, 40dp).
+ *
+ * The whole Row sits inside `statusBarsPadding()` so it's below the system
+ * status bar, and the card follows after a 12dp breathing space.
+ */
+@Composable
+fun ScreenHeader(
+    showBack: Boolean,
+    onBack: () -> Unit,
+    onLangToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Leading slot: back button or spacer (to keep lang button on the end edge)
+        if (showBack) {
+            CircleHeaderButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = Gold,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.width(40.dp))
+        }
+
+        // Trailing slot: language toggle (always present)
+        CircleHeaderButton(onClick = onLangToggle) {
+            Icon(
+                imageVector = Icons.Default.Language,
+                contentDescription = "Language",
+                tint = Gold,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
 
 /**
- * Floating back button — top-start corner, no wasted header space.
+ * One circular header button (40dp) — dark surface + thin gold border + gold icon.
+ * Same visual style on every screen.
  */
 @Composable
-fun FloatingBackButton(
+private fun CircleHeaderButton(
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    content: @Composable () -> Unit
 ) {
     Box(
-        modifier = modifier
-            .padding(start = 14.dp, top = 8.dp)
+        modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
             .background(SurfaceBlack, CircleShape)
@@ -182,81 +210,15 @@ fun FloatingBackButton(
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
-            tint = Gold,
-            modifier = Modifier.size(18.dp)
-        )
+        content()
     }
 }
 
 /**
- * Floating language toggle button — top-end corner, login screen only.
+ * 12dp breathing space — placed between the header Row and the content card
+ * on every screen so the card isn't glued to the top.
  */
 @Composable
-fun FloatingLanguageButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .padding(end = 14.dp, top = 8.dp)
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(SurfaceBlack, CircleShape)
-            .border(1.dp, BorderGold, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.Language,
-            contentDescription = "Language",
-            tint = Gold,
-            modifier = Modifier.size(18.dp)
-        )
-    }
-}
-
-/**
- * Tiny floating checking indicator shown at the top-center while a check is running.
- */
-@Composable
-private fun RunningHorseFloating(lang: AppLang, modifier: Modifier = Modifier) {
-    val infiniteTransition = rememberInfiniteTransition(label = "floatingHorse")
-    val offsetY by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(400),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "floatingHorseY"
-    )
-
-    Row(
-        modifier = modifier
-            .padding(top = 8.dp)
-            .clip(CircleShape)
-            .background(SurfaceBlack, CircleShape)
-            .border(1.dp, BorderGold, CircleShape)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_alhosan_logo),
-            contentDescription = null,
-            modifier = Modifier
-                .size(18.dp)
-                .offset(y = offsetY.dp),
-            contentScale = ContentScale.Fit
-        )
-        Text(
-            text = if (lang == AppLang.AR) "الفحص جارٍ..." else "Checking...",
-            color = Gold,
-            fontWeight = FontWeight.ExtraBold,
-            fontSize = 12.sp
-        )
-    }
+fun HeaderSpacer() {
+    Spacer(modifier = Modifier.height(12.dp))
 }
