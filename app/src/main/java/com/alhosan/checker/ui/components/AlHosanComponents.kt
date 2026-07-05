@@ -36,8 +36,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Eye
-import androidx.compose.material.icons.filled.EyeOff
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -83,6 +83,7 @@ import com.alhosan.checker.ui.theme.GreenActive
 import com.alhosan.checker.ui.theme.RedInactive
 import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.ui.theme.TextDim
+import com.alhosan.checker.ui.theme.ToastBg
 import com.alhosan.checker.ui.theme.YellowUnknown
 
 /**
@@ -117,7 +118,7 @@ fun AlHosanInputRow(
                     {
                         IconButton(onClick = { onTogglePassword?.invoke() }) {
                             Icon(
-                                imageVector = if (obscurePassword) Icons.Default.EyeOff else Icons.Default.Eye,
+                                imageVector = if (obscurePassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = null,
                                 tint = TextDim,
                                 modifier = Modifier.size(20.dp)
