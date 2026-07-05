@@ -1,175 +1,724 @@
 package com.alhosan.checker.ui.components
 
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Eye
+import androidx.compose.material.icons.filled.EyeOff
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.alhosan.checker.R
 import com.alhosan.checker.ui.theme.BorderGold
+import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.Gold
+import com.alhosan.checker.ui.theme.GoldGradientBrush
+import com.alhosan.checker.ui.theme.GoldLight
+import com.alhosan.checker.ui.theme.GreenActive
+import com.alhosan.checker.ui.theme.RedInactive
 import com.alhosan.checker.ui.theme.SurfaceBlack
+import com.alhosan.checker.ui.theme.TextDim
+import com.alhosan.checker.ui.theme.YellowUnknown
 
 /**
- * Styled text field matching the original Flutter app's dark + gold design
+ * Input field with paste button - matching HTML reference's input-row + paste-btn design
  */
 @Composable
-fun AlHosanTextField(
+fun AlHosanInputRow(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
-    icon: ImageVector,
+    placeholder: String,
     isPassword: Boolean = false,
     obscurePassword: Boolean = true,
     onTogglePassword: (() -> Unit)? = null,
+    onPaste: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, color = Color.Gray) },
-        leadingIcon = {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = Gold
-            )
-        },
-        trailingIcon = if (isPassword) {
-            {
-                IconButton(onClick = { onTogglePassword?.invoke() }) {
-                    Icon(
-                        imageVector = if (obscurePassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = null,
-                        tint = Gold
-                    )
-                }
-            }
-        } else null,
-        visualTransformation = if (isPassword && obscurePassword) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedBorderColor = Gold,
-            unfocusedBorderColor = BorderGold,
-            focusedLabelColor = Gold,
-            unfocusedLabelColor = Color.Gray,
-            cursorColor = Gold,
-            focusedLeadingIconColor = Gold,
-            unfocusedLeadingIconColor = Gold,
-            focusedContainerColor = SurfaceBlack,
-            unfocusedContainerColor = SurfaceBlack,
-        ),
-        shape = RoundedCornerShape(15.dp),
-        singleLine = true,
-        modifier = modifier.fillMaxWidth()
-    )
-}
-
-/**
- * Gold info card for displaying subscription details
- * Matches the original Flutter app's card design
- */
-@Composable
-fun InfoCard(
-    label: String,
-    value: String,
-    isStatus: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    val valueColor by animateColorAsState(
-        targetValue = when {
-            isStatus && value.equals("Active", ignoreCase = true) -> Color(0xFF4CAF50)
-            isStatus && value.equals("Disabled", ignoreCase = true) -> Color(0xFFFF4444)
-            isStatus -> Color(0xFFFF9800)
-            else -> Color.White
-        },
-        animationSpec = tween(300),
-        label = "status_color"
-    )
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = SurfaceBlack
-        ),
-        border = BorderStroke(1.dp, BorderGold),
-        shape = RoundedCornerShape(15.dp)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 15.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // Input field wrapper
+        Box(
+            modifier = Modifier.weight(1f),
+            contentAlignment = Alignment.CenterStart
         ) {
-            Text(
-                text = label,
-                color = Color.Gray,
-                style = MaterialTheme.typography.bodyMedium
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = { Text(placeholder, color = TextDim, fontSize = 14.sp) },
+                trailingIcon = if (isPassword) {
+                    {
+                        IconButton(onClick = { onTogglePassword?.invoke() }) {
+                            Icon(
+                                imageVector = if (obscurePassword) Icons.Default.EyeOff else Icons.Default.Eye,
+                                contentDescription = null,
+                                tint = TextDim,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                } else null,
+                visualTransformation = if (isPassword && obscurePassword) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = BorderGold,
+                    focusedPlaceholderColor = TextDim,
+                    unfocusedPlaceholderColor = TextDim,
+                    cursorColor = Gold,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                ),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    textAlign = TextAlign.Center,
+                    fontSize = 14.sp
+                ),
+                modifier = Modifier.fillMaxWidth()
             )
-            Text(
-                text = value,
-                color = valueColor,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge
-            )
+        }
+
+        // Paste button
+        if (onPaste != null) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .border(1.dp, BorderGold, RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable(onClick = onPaste),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ContentPaste,
+                    contentDescription = "Paste",
+                    tint = Gold,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }
 
 /**
- * Main action button with gold styling
+ * Capsule card for result display - matching HTML reference's .capsule .capsule-stacked design
+ * Horizontal layout: label on left, value on right
  */
 @Composable
-fun AlHosanButton(
+fun CapsuleRow(
+    labelIcon: ImageVector,
+    labelText: String,
+    valueText: String,
+    onCopy: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    CapsuleContainer(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Label with icon
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = labelIcon,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = labelText,
+                    color = TextDim,
+                    fontSize = 13.sp
+                )
+            }
+
+            // Value + optional copy button
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = valueText,
+                    color = Color.White,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.End
+                )
+                if (onCopy != null) {
+                    CopyButton(onClick = onCopy)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Stacked capsule - matching HTML reference's capsule-stacked design
+ * Label on top, value below, centered
+ */
+@Composable
+fun CapsuleStacked(
+    items: List<CapsuleItem>,
+    modifier: Modifier = Modifier
+) {
+    CapsuleContainer(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items.forEachIndexed { index, item ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Label
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = item.label,
+                            color = TextDim,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Value row with copy button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = item.value,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        if (item.onCopy != null) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            CopyButton(onClick = item.onCopy)
+                        }
+                    }
+                }
+
+                // Divider between items (not after last)
+                if (index < items.size - 1) {
+                    DividerRow()
+                }
+            }
+        }
+    }
+}
+
+data class CapsuleItem(
+    val icon: ImageVector,
+    val label: String,
+    val value: String,
+    val onCopy: (() -> Unit)? = null
+)
+
+/**
+ * Capsule container - the rounded border container matching HTML reference's .capsule
+ */
+@Composable
+private fun CapsuleContainer(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        ),
+        border = BorderStroke(1.dp, BorderGold),
+        shape = RoundedCornerShape(20.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(Color(0xFF080808), Color(0xFF121212))
+                    )
+                )
+        ) {
+            content()
+        }
+    }
+}
+
+/**
+ * Divider line - matching HTML reference's .divider-line
+ */
+@Composable
+fun DividerRow(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth(0.9f)
+            .height(1.dp)
+            .background(BorderGold)
+    )
+}
+
+/**
+ * Copy button - matching HTML reference's .copy-btn-res
+ */
+@Composable
+fun CopyButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(32.dp)
+            .border(1.dp, BorderGold, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.ContentPaste,
+            contentDescription = "Copy",
+            tint = Gold,
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+/**
+ * Status badge - matching HTML reference's .status-badge
+ */
+@Composable
+fun StatusBadge(
+    isActive: Boolean,
     text: String,
+    modifier: Modifier = Modifier
+) {
+    val bgColor = if (isActive) GreenActive else RedInactive
+    val textColor = if (isActive) Color.Black else Color.White
+
+    Box(
+        modifier = modifier
+            .height(36.dp)
+            .background(bgColor, RoundedCornerShape(25.dp))
+            .padding(horizontal = 22.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = textColor,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 14.sp
+        )
+    }
+}
+
+/**
+ * Progress bar - matching HTML reference's .progress-track / .progress-fill
+ */
+@Composable
+fun AlHosanProgressBar(
+    progress: Float,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Progress track
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .background(Color.Black, RoundedCornerShape(20.dp))
+                .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
+        ) {
+            // Progress fill
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .background(GoldGradientBrush, RoundedCornerShape(20.dp))
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Progress label
+        Text(
+            text = label,
+            color = Gold,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * Main action button - matching HTML reference's .btn-main
+ * Gold gradient background with black text
+ */
+@Composable
+fun AlHosanMainButton(
+    text: String,
+    icon: ImageVector? = null,
     onClick: () -> Unit,
     isLoading: Boolean = false,
     enabled: Boolean = true,
+    isSubButton: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    Button(
-        onClick = onClick,
-        enabled = enabled && !isLoading,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = Gold,
-            contentColor = Color.Black,
-            disabledContainerColor = Gold.copy(alpha = 0.5f),
-            disabledContentColor = Color.Black.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(15.dp),
+    val bgColor = if (isSubButton) Color.Transparent else Color(0xFFD4AF37)
+    val textColor = if (isSubButton) Gold else Color.Black
+    val iconColor = if (isSubButton) Gold else Color.Black
+    val border = if (isSubButton) BorderStroke(1.dp, BorderGold) else null
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(60.dp)
+            .height(56.dp)
+            .then(
+                if (border != null) Modifier.border(border, RoundedCornerShape(22.dp))
+                else Modifier
+            )
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (isSubButton) Color.Transparent else GoldGradientBrush)
+            .clickable(enabled = enabled && !isLoading) { onClick() },
+        contentAlignment = Alignment.Center
     ) {
         if (isLoading) {
-            CircularProgressIndicator(
+            androidx.compose.material3.CircularProgressIndicator(
                 color = Color.Black,
                 strokeWidth = 2.dp,
                 modifier = Modifier.size(24.dp)
             )
         } else {
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
+                Text(
+                    text = text,
+                    color = textColor,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Running horse animation - matching HTML reference's .running-horse @keyframes horseSprint
+ */
+@Composable
+fun RunningHorseLogo(
+    isRunning: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "horse")
+    val offsetY by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = -14f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(550, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "horseY"
+    )
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = -12f,
+        targetValue = 12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(550, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "horseR"
+    )
+
+    Image(
+        painter = painterResource(id = R.drawable.ic_alhosan_logo),
+        contentDescription = "الحصان",
+        modifier = modifier
+            .then(
+                if (isRunning) Modifier.offset(y = offsetY.dp)
+                else Modifier
+            ),
+        contentScale = ContentScale.Fit
+    )
+}
+
+/**
+ * Toast notification - matching HTML reference's .toast-item
+ */
+@Composable
+fun AlHosanToast(
+    message: String,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .wrapContentHeight()
+            .background(ToastBg, RoundedCornerShape(50.dp))
+            .border(1.dp, BorderGold, RoundedCornerShape(50.dp))
+            .padding(horizontal = 28.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * Modal confirmation dialog - matching HTML reference's custom modal
+ */
+@Composable
+fun AlHosanModal(
+    message: String,
+    cancelText: String,
+    confirmText: String,
+    onCancel: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight()
+            .background(Color(0xBF000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            colors = CardDefaults.cardColors(containerColor = CardBg),
+            border = BorderStroke(1.dp, BorderGold),
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = message,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 24.sp
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Cancel button
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .background(Color(0xFF1A1A1A), RoundedCornerShape(16.dp))
+                            .border(1.dp, Color(0xFF333333), RoundedCornerShape(16.dp))
+                            .clickable(onClick = onCancel),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = cancelText,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    // Confirm button
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .background(Color.Transparent, RoundedCornerShape(16.dp))
+                            .border(1.dp, RedInactive.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                            .clickable(onClick = onConfirm),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = confirmText,
+                            color = RedInactive,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Content count display - matching HTML reference's .v-content with spinner
+ */
+@Composable
+fun ContentCountDisplay(
+    liveCount: String,
+    movieCount: String,
+    seriesCount: String,
+    channelsLabel: String,
+    moviesLabel: String,
+    seriesLabel: String,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
+    CapsuleContainer(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                ContentCountItem(channelsLabel, liveCount, isLoading)
+                Text(" | ", color = Color(0xFF333333), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                ContentCountItem(moviesLabel, movieCount, isLoading)
+                Text(" | ", color = Color(0xFF333333), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                ContentCountItem(seriesLabel, seriesCount, isLoading)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContentCountItem(label: String, count: String, isLoading: Boolean) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            color = TextDim,
+            fontSize = 12.sp
+        )
+        if (isLoading) {
+            androidx.compose.material3.CircularProgressIndicator(
+                color = Gold,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(18.dp)
+            )
+        } else {
             Text(
-                text = text,
-                style = MaterialTheme.typography.labelLarge
+                text = count,
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 18.sp
             )
         }
     }
