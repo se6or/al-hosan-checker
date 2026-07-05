@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -134,6 +135,7 @@ fun AlHosanApp() {
                         lang = lang,
                         isRunning = isChecking,
                         showBack = false,
+                        title = null,  // login shows logo + splash title
                         onLangToggle = viewModel::toggleLang,
                         onBack = {}
                     )
@@ -153,6 +155,7 @@ fun AlHosanApp() {
                         lang = lang,
                         isRunning = isChecking,
                         showBack = true,
+                        title = lang.resTitle,  // dynamic title per screen
                         onLangToggle = viewModel::toggleLang,
                         onBack = {
                             viewModel.resetState()
@@ -173,6 +176,7 @@ fun AlHosanApp() {
                         lang = lang,
                         isRunning = false,
                         showBack = true,
+                        title = lang.hTitle,  // dynamic title per screen
                         onLangToggle = viewModel::toggleLang,
                         onBack = { navController.popBackStack() }
                     )
@@ -190,16 +194,24 @@ fun AlHosanApp() {
 }
 
 /**
- * App header bar - matching HTML reference's .app-header design
- * Left: Language toggle button
- * Center: Running horse animation (when checking) or app title
- * Right: Back button (when applicable)
+ * App header bar - matching HTML reference's .app-header design.
+ *
+ * Behavior matches the HTML reference:
+ *  - On splash / login: shows logo + "محرك الحصان الفاحص" + language button (no back)
+ *  - On result: shows "تفاصيل الاشتراك" title + back button (no language)
+ *  - On history: shows "سجل المحفوظات" title + back button (no language)
+ *  - While checking: shows running horse animation in center
+ *
+ * Left: Language toggle button (only on login/splash)
+ * Center: Running horse animation (when checking) OR screen-specific title OR logo
+ * Right: Back button (only on result/history)
  */
 @Composable
 fun AppHeader(
     lang: AppLang,
     isRunning: Boolean,
     showBack: Boolean,
+    title: String?,  // null = show logo + splash title (login/splash)
     onLangToggle: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -211,59 +223,74 @@ fun AppHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left: Language toggle
-        Box(
-            modifier = Modifier
-                .background(SurfaceBlack, RoundedCornerShape(14.dp))
-                .border(1.dp, BorderGold, RoundedCornerShape(14.dp))
-                .clip(RoundedCornerShape(14.dp))
-                .clickable(onClick = onLangToggle)
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+        // Left: Language toggle (hidden on result/history screens, matches HTML)
+        if (showBack) {
+            Spacer(modifier = Modifier.width(80.dp))
+        } else {
+            Box(
+                modifier = Modifier
+                    .background(SurfaceBlack, RoundedCornerShape(14.dp))
+                    .border(1.dp, BorderGold, RoundedCornerShape(14.dp))
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onLangToggle)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.Language,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(18.dp)
-                )
-                Text(
-                    text = lang.lBtn,
-                    color = Gold,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = lang.lBtn,
+                        color = Gold,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
 
-        // Center: Running horse animation or app title
-        if (isRunning) {
-            RunningHorseHeader(lang)
-        } else {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_alhosan_logo),
-                    contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                    contentScale = ContentScale.Fit
-                )
+        // Center: Running horse animation OR screen title OR logo + splash title
+        when {
+            isRunning -> RunningHorseHeader(lang)
+            title != null -> {
                 Text(
-                    text = lang.splash,
+                    text = title,
                     color = Gold,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.sp
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center
                 )
+            }
+            else -> {
+                // Login / splash: logo + app title
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_alhosan_logo),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                    Text(
+                        text = lang.splash,
+                        color = Gold,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
 
-        // Right: Back button or spacer
+        // Right: Back button (result/history) or spacer (login)
         if (showBack) {
             Box(
                 modifier = Modifier
@@ -293,7 +320,6 @@ fun AppHeader(
                 }
             }
         } else {
-            // Invisible spacer to balance layout
             Spacer(modifier = Modifier.width(80.dp))
         }
     }
