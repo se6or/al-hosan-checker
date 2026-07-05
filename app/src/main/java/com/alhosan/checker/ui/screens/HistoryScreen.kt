@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +48,7 @@ import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.HistoryItem
 import com.alhosan.checker.ui.components.AlHosanToast
 import com.alhosan.checker.ui.i18n.*
+import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.GreenActive
@@ -62,7 +64,8 @@ import com.alhosan.checker.viewmodel.CheckerViewModel
 fun HistoryScreen(
     onBack: () -> Unit,
     onRestore: () -> Unit,
-    viewModel: CheckerViewModel = viewModel()
+    viewModel: CheckerViewModel = viewModel(),
+    floatingHeader: @Composable () -> Unit = {}
 ) {
     val history by viewModel.history.collectAsState()
     val lang by viewModel.lang.collectAsState()
@@ -82,7 +85,12 @@ fun HistoryScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Black).statusBarsPadding()) {
+        // Floating back button (top-start corner, overlays the card)
+        Box(modifier = Modifier.align(Alignment.TopStart)) {
+            floatingHeader()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
