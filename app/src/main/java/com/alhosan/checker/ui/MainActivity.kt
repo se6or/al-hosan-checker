@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,7 +42,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +61,6 @@ import com.alhosan.checker.ui.screens.SplashScreen
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
-import com.alhosan.checker.ui.theme.GoldGradientBrush
 import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.ui.theme.AlHosanTheme
 import com.alhosan.checker.viewmodel.CheckerViewModel
@@ -295,9 +294,14 @@ private fun CircleHeaderButton(
 /**
  * Running horse animation for header — bouncing horse logo during check.
  * Shown in place of the title while a subscription check is in progress.
+ *
+ * Note: this composable is invoked from inside a [Row], so it receives a
+ * `RowScope`-bound modifier (Modifier.weight(1f)) from the caller instead
+ * of trying to call .weight() here (which would fail because this function's
+ * own Modifier is not in a RowScope).
  */
 @Composable
-private fun RunningHorseHeader(lang: AppLang) {
+private fun RowScope.RunningHorseHeader(lang: AppLang) {
     val infiniteTransition = rememberInfiniteTransition(label = "headerHorse")
     val offsetY by infiniteTransition.animateFloat(
         initialValue = 0f,
