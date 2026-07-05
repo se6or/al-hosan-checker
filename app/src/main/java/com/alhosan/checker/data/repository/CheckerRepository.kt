@@ -89,7 +89,7 @@ class CheckerRepository {
                     listOf("http", "https")  // default: HTTP first (most IPTV panels)
                 }
 
-                var lastError: Exception? = null
+                var lastError: Throwable? = null
                 var lastErrorCode = "unknown"
 
                 for (scheme in schemesToTry) {
