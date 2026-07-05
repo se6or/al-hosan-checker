@@ -59,7 +59,7 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.ui.theme.AlHosanTheme
 import com.alhosan.checker.viewmodel.CheckerViewModel
-import com.alhosan.checker.ui.i18n.Strings.*
+import com.alhosan.checker.ui.i18n.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
