@@ -475,7 +475,10 @@ fun AlHosanMainButton(
                 else Modifier
             )
             .clip(RoundedCornerShape(22.dp))
-            .background(if (isSubButton) Color.Transparent else GoldGradientBrush)
+            .then(
+                if (isSubButton) Modifier.background(Color.Transparent)
+                else Modifier.background(GoldGradientBrush)
+            )
             .clickable(enabled = enabled && !isLoading) { onClick() },
         contentAlignment = Alignment.Center
     ) {
