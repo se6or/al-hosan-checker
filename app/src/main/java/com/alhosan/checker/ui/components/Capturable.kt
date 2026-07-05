@@ -6,29 +6,27 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.unit.IntSize
-import kotlin.math.roundToInt
 
 /**
  * Capture composable content into a [GraphicsLayer] so it can be exported
  * as a Bitmap later (replaces html2canvas from the HTML reference).
  *
- * Usage:
- *   val layer = remember { GraphicsLayer() }
- *   Box(modifier = Modifier.captureToLayer(layer)) { ... }
- *   // later:
- *   val bitmap = layer.toImageBitmap().asAndroidBitmap()
+ * Compose UI 1.7+ API:
+ *  - Use `rememberGraphicsLayer()` to obtain an instance (constructor is internal)
+ *  - `record(size) { ... }` captures the content draw
+ *  - `toImageBitmap()` (suspend) converts it to a Bitmap
  *
- * Implementation: records the content draw into the layer, then draws the
- * layer onto the actual canvas so the user still sees the content on screen.
+ * Inside `record { ... }`, the receiver is `DrawScope`, not `ContentDrawScope`,
+ * so we must qualify `drawContent()` with the outer `onDrawWithContent` label.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 fun Modifier.captureToLayer(layer: GraphicsLayer): Modifier = this.drawWithCache {
     onDrawWithContent {
-        val w = size.width.roundToInt().coerceAtLeast(1)
-        val h = size.height.roundToInt().coerceAtLeast(1)
-        layer.record(IntSize(w, h)) {
-            drawContent()
+        // Capture the content draw into the layer
+        layer.record(size) {
+            this@onDrawWithContent.drawContent()
         }
+        // Then draw the layer onto the actual canvas so the user still sees it
         drawLayer(layer)
     }
 }
