@@ -8,9 +8,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.layer.GraphicsLayer
+import com.alhosan.checker.data.model.AppLang
+import com.alhosan.checker.data.model.Subscription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
@@ -18,33 +17,32 @@ import java.io.OutputStream
 /**
  * Image exporter — replaces the HTML reference's html2canvas approach.
  *
- * Captures a Compose GraphicsLayer into a Bitmap, then saves it to the
- * device's Pictures/AlHosan directory via MediaStore so it appears in
- * the Gallery app on Android 10+ (no permission needed) and uses
- * legacy WRITE_EXTERNAL_STORAGE only on Android 9 and below.
+ * Instead of capturing a Compose subtree (which requires the experimental
+ * GraphicsLayer API from Compose 1.7+), we render the result card data
+ * directly to a Bitmap using Android's native Canvas API via
+ * [ResultImageRenderer]. This works on any Compose version and gives us
+ * full control over the exported image layout.
  *
- * NOTE: `GraphicsLayer.toImageBitmap()` is a suspend function in Compose UI 1.7+,
- * so callers must invoke `saveLayerToGallery` from a coroutine.
+ * The PNG is saved to the device's Pictures/AlHosan directory via MediaStore
+ * (visible in the Gallery on Android 10+ without any permission).
  */
 object ImageExporter {
 
     /**
-     * Save a Compose GraphicsLayer as a PNG image to the gallery.
-     * MUST be called from a coroutine (suspend function).
-     *
-     * toImageBitmap() must run on the calling dispatcher (typically Main,
-     * because it interacts with the rendering pipeline). The file write is
-     * moved to Dispatchers.IO.
+     * Render the [subscription] data to a PNG image and save it to the gallery.
+     * Safe to call from any coroutine; file IO is moved to Dispatchers.IO.
      */
-    @OptIn(ExperimentalComposeUiApi::class)
-    suspend fun saveLayerToGallery(
+    suspend fun saveSubscriptionToGallery(
         context: Context,
-        layer: GraphicsLayer,
+        subscription: Subscription,
+        lang: AppLang,
         fileName: String = "HORSE_PRO_${System.currentTimeMillis()}"
     ): Boolean {
         return try {
-            // toImageBitmap() is suspend and may need to interact with the rendering thread
-            val bitmap = layer.toImageBitmap().asAndroidBitmap()
+            // Rendering is CPU work, do it on Default dispatcher
+            val bitmap = withContext(Dispatchers.Default) {
+                ResultImageRenderer.render(subscription, lang)
+            }
             // File IO on the IO dispatcher
             withContext(Dispatchers.IO) {
                 saveBitmapToGallery(context, bitmap, fileName)

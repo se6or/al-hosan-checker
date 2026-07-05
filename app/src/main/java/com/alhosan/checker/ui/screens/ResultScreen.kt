@@ -41,11 +41,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.layer.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,7 +56,6 @@ import com.alhosan.checker.ui.components.CapsuleItem
 import com.alhosan.checker.ui.components.CapsuleStacked
 import com.alhosan.checker.ui.components.ContentCountDisplay
 import com.alhosan.checker.ui.components.StatusBadge
-import com.alhosan.checker.ui.components.captureToLayer
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
@@ -72,10 +69,10 @@ import kotlinx.coroutines.launch
  * Result screen - matching HTML reference's #scr-result
  * Features: capsule-style cards, copy buttons, status badge, M3U generation, save, export-as-image
  *
- * The export-as-image uses Compose's GraphicsLayer (modern replacement for html2canvas)
- * and saves the captured bitmap to Pictures/AlHosan via MediaStore.
+ * The export-as-image button renders the subscription data to a Bitmap via
+ * [com.alhosan.checker.util.ResultImageRenderer] (using Android's native Canvas)
+ * and saves the PNG to Pictures/AlHosan via MediaStore.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ResultScreen(
     onBack: () -> Unit,
@@ -89,10 +86,6 @@ fun ResultScreen(
     val subscription = (state as? CheckerState.Success)?.subscription
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-
-    // GraphicsLayer used to capture the result card as a bitmap (replaces html2canvas).
-    // rememberGraphicsLayer() is the Compose 1.7+ public API (constructor is internal).
-    val graphicsLayer = rememberGraphicsLayer()
 
     // Handle system back button / gesture — matches HTML's handleAndroidBack.
     // onBack already calls resetState + popBackStack, so we don't double-call here.
@@ -125,12 +118,12 @@ fun ResultScreen(
                 .padding(16.dp)
         ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
-            // This entire block is captured into a GraphicsLayer so it can be
-            // exported as a PNG image (replaces html2canvas from the HTML reference).
+            // The visual layout here mirrors what ResultImageRenderer draws to the
+            // exported PNG. We don't capture this Compose subtree directly anymore —
+            // instead, the export button re-renders the data via ResultImageRenderer.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .captureToLayer(graphicsLayer)
                     .background(Black, RoundedCornerShape(28.dp))
                     .padding(16.dp)
             ) {
@@ -306,18 +299,19 @@ fun ResultScreen(
                     )
                 }
 
-                // Export as image button — captures the GraphicsLayer and saves PNG to gallery.
-                // saveLayerToGallery is suspend (toImageBitmap is suspend in Compose 1.7+),
-                // and it internally moves file IO to Dispatchers.IO.
+                // Export as image button — renders the subscription data to a PNG via
+                // ResultImageRenderer (Android Canvas) and saves it to the gallery.
                 Box(modifier = Modifier.weight(if (isFromHistory) 1.5f else 1f)) {
                     AlHosanMainButton(
                         text = lang.btnE,
                         icon = Icons.Default.PhotoCamera,
                         onClick = {
+                            val sub = subscription ?: return@AlHosanMainButton
                             scope.launch {
-                                val success = ImageExporter.saveLayerToGallery(
+                                val success = ImageExporter.saveSubscriptionToGallery(
                                     context = context,
-                                    layer = graphicsLayer,
+                                    subscription = sub,
+                                    lang = lang,
                                     fileName = "HORSE_PRO_${System.currentTimeMillis()}"
                                 )
                                 viewModel.showToast(
