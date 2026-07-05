@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,8 +63,7 @@ import com.alhosan.checker.viewmodel.CheckerViewModel
 fun HistoryScreen(
     onBack: () -> Unit,
     onRestore: () -> Unit,
-    viewModel: CheckerViewModel = viewModel(),
-    floatingHeader: @Composable () -> Unit = {}
+    viewModel: CheckerViewModel = viewModel()
 ) {
     val history by viewModel.history.collectAsState()
     val lang by viewModel.lang.collectAsState()
@@ -85,21 +83,27 @@ fun HistoryScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Black).statusBarsPadding()) {
-        // Floating back button (top-start corner, overlays the card)
-        Box(modifier = Modifier.align(Alignment.TopStart)) {
-            floatingHeader()
-        }
-
+    Box(modifier = Modifier.fillMaxSize().background(Black)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(14.dp)
         ) {
-            // Card container
+            // ── Header Row (above the card, real layout slot — not overlay) ──
+            com.alhosan.checker.ui.ScreenHeader(
+                showBack = true,
+                onBack = onBack,
+                onLangToggle = viewModel::toggleLang
+            )
+
+            // ── Breathing space between header and card ──
+            com.alhosan.checker.ui.HeaderSpacer()
+
+            // ── Card container ──
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderGold),
                 shape = RoundedCornerShape(28.dp)
@@ -190,7 +194,7 @@ fun HistoryScreen(
                     }
                 }
             }
-        }
+            } // end outer Column
 
         // ─── Toast at bottom ───
         AnimatedVisibility(

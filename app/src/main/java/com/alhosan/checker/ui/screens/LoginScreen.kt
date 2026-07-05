@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,8 +19,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -35,7 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,26 +42,36 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckMode
 import com.alhosan.checker.data.model.CheckerState
+import com.alhosan.checker.ui.HeaderSpacer
+import com.alhosan.checker.ui.ScreenHeader
 import com.alhosan.checker.ui.components.AlHosanInputRow
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanProgressBar
 import com.alhosan.checker.ui.components.AlHosanToast
-import com.alhosan.checker.ui.components.RunningHorseLogo
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.GoldGradientBrush
-import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
 
+/**
+ * Login/Check screen.
+ *
+ * LAYOUT (top → bottom):
+ *   1. ScreenHeader Row (back-slot empty + language toggle)
+ *   2. HeaderSpacer (12dp breathing space)
+ *   3. Card with tabs + inputs + buttons
+ *
+ * No overlays — the header is a normal layout slot ABOVE the card, so the
+ * language button is always tappable and the card has clear breathing space.
+ */
 @Composable
 fun LoginScreen(
     onResultReady: () -> Unit,
     onHistoryClick: () -> Unit,
-    viewModel: CheckerViewModel = viewModel(),
-    floatingHeader: @Composable () -> Unit = {}
+    viewModel: CheckerViewModel = viewModel()
 ) {
     val host by viewModel.host.collectAsState()
     val username by viewModel.username.collectAsState()
@@ -107,16 +114,23 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Black)
-            .statusBarsPadding()
     ) {
-        // ── Card column — drawn first (lower z-order) ──
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 14.dp, end = 14.dp, top = 60.dp, bottom = 14.dp)
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ── Header Row (above the card, real layout slot — not overlay) ──
+            ScreenHeader(
+                showBack = false,
+                onBack = {},
+                onLangToggle = viewModel::toggleLang
+            )
+
+            // ── Breathing space between header and card ──
+            HeaderSpacer()
+
+            // ── Card with content ──
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderGold),
                 shape = RoundedCornerShape(28.dp)
@@ -208,11 +222,6 @@ fun LoginScreen(
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 35.dp)
         ) {
             if (toastMessage != null) AlHosanToast(message = toastMessage!!)
-        }
-
-        // ── Floating header — LAST = highest z-order, always on top of card ──
-        Box(modifier = Modifier.align(Alignment.TopEnd)) {
-            floatingHeader()
         }
     }
 }
