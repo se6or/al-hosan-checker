@@ -58,15 +58,20 @@ al-hosan-checker/
 │   │   │   └── x86_64/
 │   │   ├── java/com/alhosan/checker/
 │   │   │   ├── ui/
-│   │   │   │   ├── MainActivity.kt       # Activity + Navigation
+│   │   │   │   ├── MainActivity.kt       # Activity + Navigation + AppHeader
 │   │   │   │   ├── theme/
 │   │   │   │   │   ├── Theme.kt          # Gold-on-Black theme
 │   │   │   │   │   └── Type.kt           # Arabic typography
+│   │   │   │   ├── i18n/
+│   │   │   │   │   └── Strings.kt        # Bilingual AR/EN strings
 │   │   │   │   ├── screens/
+│   │   │   │   │   ├── SplashScreen.kt   # شاشة البداية
 │   │   │   │   │   ├── LoginScreen.kt    # شاشة تسجيل الدخول
-│   │   │   │   │   └── ResultScreen.kt   # شاشة النتائج
+│   │   │   │   │   ├── ResultScreen.kt   # شاشة النتائج (مع تصدير الصورة)
+│   │   │   │   │   └── HistoryScreen.kt  # شاشة السجل
 │   │   │   │   └── components/
-│   │   │   │       └── AlHosanComponents.kt  # Reusable UI components
+│   │   │   │       ├── AlHosanComponents.kt  # Reusable UI components
+│   │   │   │       └── Capturable.kt     # GraphicsLayer capture modifier
 │   │   │   ├── data/
 │   │   │   │   ├── model/
 │   │   │   │   │   └── Subscription.kt   # Data model
@@ -74,6 +79,8 @@ al-hosan-checker/
 │   │   │   │       └── CheckerRepository.kt  # Repository layer
 │   │   │   ├── bridge/
 │   │   │   │   └── RustBridge.kt         # JNI bridge to Rust
+│   │   │   ├── util/
+│   │   │   │   └── ImageExporter.kt      # MediaStore PNG export
 │   │   │   └── viewmodel/
 │   │   │       └── CheckerViewModel.kt   # ViewModel
 │   │   └── res/
@@ -153,6 +160,19 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
 ### فحص دفعي (Batch Check)
 - فحص عدة اشتراكات بالتوازي
 - معالجة متوازية باستخدام rayon
+
+### تصدير النتيجة كصورة (جديد)
+- التقاط كارد النتيجة عبر Compose `GraphicsLayer` (بديل html2canvas)
+- حفظ PNG تلقائياً في `Pictures/AlHosan` عبر MediaStore
+- يعمل على Android 10+ بدون أذونات، ويستخدم WRITE_EXTERNAL_STORAGE على Android 9 وأقل
+
+### واجهة المستخدم الديناميكية
+- الهيدر يبدّل العنوان حسب الشاشة:
+  - شاشة الدخول: شعار الحصان + "محرك الحصان الفاحص" + زر اللغة
+  - شاشة النتيجة: "تفاصيل الاشتراك" + زر الرجوع
+  - شاشة السجل: "سجل المحفوظات" + زر الرجوع
+- إخفاء زر "حفظ" عند فتح عنصر محفوظ من السجل (نفس سلوك HTML)
+- معالجة زر الرجوع للنظام عبر `BackHandler`
 
 ---
 

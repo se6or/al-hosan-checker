@@ -3,6 +3,7 @@ package com.alhosan.checker.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -38,16 +39,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
@@ -55,17 +59,26 @@ import com.alhosan.checker.ui.components.CapsuleItem
 import com.alhosan.checker.ui.components.CapsuleStacked
 import com.alhosan.checker.ui.components.ContentCountDisplay
 import com.alhosan.checker.ui.components.StatusBadge
+import com.alhosan.checker.ui.components.captureToLayer
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
+import com.alhosan.checker.util.ImageExporter
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Result screen - matching HTML reference's #scr-result
- * Features: capsule-style cards, copy buttons, status badge, M3U generation, save, export
+ * Features: capsule-style cards, copy buttons, status badge, M3U generation, save, export-as-image
+ *
+ * The export-as-image uses Compose's GraphicsLayer (modern replacement for html2canvas)
+ * and saves the captured bitmap to Pictures/AlHosan via MediaStore.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ResultScreen(
     onBack: () -> Unit,
@@ -75,8 +88,17 @@ fun ResultScreen(
     val lang by viewModel.lang.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     val isCounting by viewModel.isCounting.collectAsState()
+    val isFromHistory by viewModel.isFromHistory.collectAsState()
     val subscription = (state as? CheckerState.Success)?.subscription
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // GraphicsLayer used to capture the result card as a bitmap (replaces html2canvas)
+    val graphicsLayer = remember { GraphicsLayer() }
+
+    // Handle system back button / gesture — matches HTML's handleAndroidBack.
+    // onBack already calls resetState + popBackStack, so we don't double-call here.
+    BackHandler(enabled = true) { onBack() }
 
     // Navigate back if no subscription data
     LaunchedEffect(subscription) {
@@ -97,9 +119,7 @@ fun ResultScreen(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -107,9 +127,12 @@ fun ResultScreen(
                 .padding(16.dp)
         ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
+            // This entire block is captured into a GraphicsLayer so it can be
+            // exported as a PNG image (replaces html2canvas from the HTML reference).
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .captureToLayer(graphicsLayer)
                     .background(Black, RoundedCornerShape(28.dp))
                     .padding(16.dp)
             ) {
@@ -120,19 +143,19 @@ fun ResultScreen(
                             icon = Icons.Default.SignalCellularAlt,
                             label = lang.lHost,
                             value = subscription.host,
-                            onCopy = { copyToClipboard(context, subscription.host, lang) }
+                            onCopy = { copyToClipboard(context, subscription.host) }
                         ),
                         CapsuleItem(
                             icon = Icons.Default.Groups,
                             label = lang.lUser,
                             value = subscription.username,
-                            onCopy = { copyToClipboard(context, subscription.username, lang) }
+                            onCopy = { copyToClipboard(context, subscription.username) }
                         ),
                         CapsuleItem(
                             icon = Icons.Default.Key,
                             label = lang.lPass,
                             value = subscription.password,
-                            onCopy = { copyToClipboard(context, subscription.password, lang) }
+                            onCopy = { copyToClipboard(context, subscription.password) }
                         )
                     )
                 )
@@ -146,13 +169,13 @@ fun ResultScreen(
                             icon = Icons.Default.CalendarToday,
                             label = lang.lCreated,
                             value = subscription.created,
-                            onCopy = { copyToClipboard(context, subscription.created, lang) }
+                            onCopy = { copyToClipboard(context, subscription.created) }
                         ),
                         CapsuleItem(
                             icon = Icons.Default.CalendarMonth,
                             label = lang.lExpiry,
                             value = subscription.expiry,
-                            onCopy = { copyToClipboard(context, subscription.expiry, lang) }
+                            onCopy = { copyToClipboard(context, subscription.expiry) }
                         )
                     )
                 )
@@ -177,22 +200,17 @@ fun ResultScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.SignalCellularAlt,
-                                contentDescription = null,
-                                tint = Gold,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = lang.lStatus,
-                                color = Color(0xFFA0A0A0),
-                                fontSize = 13.sp
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.SignalCellularAlt,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = lang.lStatus,
+                            color = Color(0xFFA0A0A0),
+                            fontSize = 13.sp
+                        )
                         StatusBadge(
                             isActive = subscription.isActive,
                             text = if (subscription.isActive) lang.on else lang.off
@@ -204,22 +222,17 @@ fun ResultScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Science,
-                                contentDescription = null,
-                                tint = Gold,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = lang.lTrial,
-                                color = Color(0xFFA0A0A0),
-                                fontSize = 13.sp
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Science,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = lang.lTrial,
+                            color = Color(0xFFA0A0A0),
+                            fontSize = 13.sp
+                        )
                         Text(
                             text = if (subscription.isTrial) lang.yes else lang.no,
                             color = Color.White,
@@ -238,13 +251,13 @@ fun ResultScreen(
                             icon = Icons.Default.Devices,
                             label = lang.lDevices,
                             value = subscription.activeCons,
-                            onCopy = { copyToClipboard(context, subscription.activeCons, lang) }
+                            onCopy = { copyToClipboard(context, subscription.activeCons) }
                         ),
                         CapsuleItem(
                             icon = Icons.Default.Groups,
                             label = lang.lMaxCons,
                             value = subscription.maxCons,
-                            onCopy = { copyToClipboard(context, subscription.maxCons, lang) }
+                            onCopy = { copyToClipboard(context, subscription.maxCons) }
                         )
                     )
                 )
@@ -263,54 +276,56 @@ fun ResultScreen(
                 )
             }
 
-            // ─── Action row: Save, M3U, Export Image ───
+            // ─── Action row: Save (hidden for restored items), M3U, Export Image ───
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Save button
-                Box(modifier = Modifier.weight(1.5f)) {
-                    AlHosanMainButton(
-                        text = lang.btnS,
-                        icon = Icons.Default.Save,
-                        onClick = { viewModel.saveToHistory() }
-                    )
+                // Save button — hidden when viewing a restored history item (matches HTML)
+                if (!isFromHistory) {
+                    Box(modifier = Modifier.weight(1.5f)) {
+                        AlHosanMainButton(
+                            text = lang.btnS,
+                            icon = Icons.Default.Save,
+                            onClick = { viewModel.saveToHistory() }
+                        )
+                    }
                 }
 
-                // M3U button
+                // M3U button — copy M3U link
                 Box(modifier = Modifier.weight(1f)) {
                     AlHosanMainButton(
                         text = lang.btnM3U,
                         icon = Icons.Default.Link,
                         onClick = {
                             val m3uLink = viewModel.generateM3uLink()
-                            copyToClipboard(context, m3uLink, lang)
+                            copyToClipboard(context, m3uLink)
                             viewModel.showToast(lang.tCopiedM3U)
                         },
                         isSubButton = true
                     )
                 }
 
-                // Export as image button
-                Box(modifier = Modifier.weight(1f)) {
+                // Export as image button — captures the GraphicsLayer and saves PNG to gallery
+                Box(modifier = Modifier.weight(if (isFromHistory) 1.5f else 1f)) {
                     AlHosanMainButton(
                         text = lang.btnE,
                         icon = Icons.Default.PhotoCamera,
                         onClick = {
-                            // Export as image - copy all text as workaround
-                            val info = "${lang.lHost}: ${subscription.host}\n" +
-                                    "${lang.lUser}: ${subscription.username}\n" +
-                                    "${lang.lPass}: ${subscription.password}\n" +
-                                    "${lang.lStatus}: ${if (subscription.isActive) lang.on else lang.off}\n" +
-                                    "${lang.lCreated}: ${subscription.created}\n" +
-                                    "${lang.lExpiry}: ${subscription.expiry}\n" +
-                                    "${lang.lDevices}: ${subscription.activeCons}\n" +
-                                    "${lang.lMaxCons}: ${subscription.maxCons}\n" +
-                                    "${lang.lChannels}: ${subscription.liveCount} | ${lang.lMovies}: ${subscription.movieCount} | ${lang.lSeries}: ${subscription.seriesCount}"
-                            copyToClipboard(context, info, lang)
-                            viewModel.showToast(lang.tCopied)
+                            scope.launch {
+                                val success = withContext(Dispatchers.IO) {
+                                    ImageExporter.saveLayerToGallery(
+                                        context = context,
+                                        layer = graphicsLayer,
+                                        fileName = "HORSE_PRO_${System.currentTimeMillis()}"
+                                    )
+                                }
+                                viewModel.showToast(
+                                    if (success) lang.tExportOk else lang.tExportFail
+                                )
+                            }
                         },
                         isSubButton = true
                     )
@@ -339,7 +354,7 @@ fun ResultScreen(
 /**
  * Copy value to clipboard - matching HTML reference's copyVal() function
  */
-private fun copyToClipboard(context: Context, text: String, lang: AppLang) {
+private fun copyToClipboard(context: Context, text: String) {
     if (text == "--" || text == "N/A" || text.isBlank()) return
     try {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

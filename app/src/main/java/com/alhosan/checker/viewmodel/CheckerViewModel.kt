@@ -88,6 +88,11 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
     private val _history = MutableStateFlow<List<HistoryItem>>(emptyList())
     val history: StateFlow<List<HistoryItem>> = _history.asStateFlow()
 
+    // ─── Track whether current result is from a restored history item ───
+    // When true, the ResultScreen hides the Save button (matches HTML reference behavior)
+    private val _isFromHistory = MutableStateFlow(false)
+    val isFromHistory: StateFlow<Boolean> = _isFromHistory.asStateFlow()
+
     private var lastSavedHash = ""
 
     init {
@@ -170,6 +175,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
 
         _isChecking.value = true
         _state.value = CheckerState.Loading(ProgressPhase.CONNECTING)
+        _isFromHistory.value = false  // fresh check — Save button should be visible
 
         viewModelScope.launch {
             try {
@@ -348,6 +354,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             m3uLink = item.m3uLink
         )
         _state.value = CheckerState.Success(subscription)
+        _isFromHistory.value = true  // restored item — hide Save button (matches HTML)
         return true
     }
 
