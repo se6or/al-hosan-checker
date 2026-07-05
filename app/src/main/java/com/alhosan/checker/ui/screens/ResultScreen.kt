@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -77,8 +76,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ResultScreen(
     onBack: () -> Unit,
-    viewModel: CheckerViewModel = viewModel(),
-    floatingHeader: @Composable () -> Unit = {}
+    viewModel: CheckerViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
     val lang by viewModel.lang.collectAsState()
@@ -112,18 +110,28 @@ fun ResultScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Black).statusBarsPadding()) {
-        // Floating back button (top-start corner, overlays the card)
-        Box(modifier = Modifier.align(Alignment.TopStart)) {
-            floatingHeader()
-        }
-
+    Box(modifier = Modifier.fillMaxSize().background(Black)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
         ) {
+            // ── Header Row (above the card, real layout slot — not overlay) ──
+            com.alhosan.checker.ui.ScreenHeader(
+                showBack = true,
+                onBack = onBack,
+                onLangToggle = viewModel::toggleLang
+            )
+
+            // ── Breathing space between header and card ──
+            com.alhosan.checker.ui.HeaderSpacer()
+
+            // ── Card content ──
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
             // The visual layout here mirrors what ResultImageRenderer draws to the
             // exported PNG. We don't capture this Compose subtree directly anymore —
