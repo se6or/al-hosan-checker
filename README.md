@@ -1,12 +1,12 @@
-# 🐎 الحصان الفاحص - AlHosan Checker
+# الحصان الفاحص — AlHosan Checker
 
-تطبيق فحص اشتراكات Xtream و M3U بسرعة وسهولة، مع واجهة مستخدم احترافية باللغة العربية.
+تطبيق فحص اشتراكات Xtream و M3U بسرعة وسهولة، مع واجهة مستخدم احترافية باللغة العربية والإنجليزية.
 
 **التقنولوجيا:** Kotlin + Jetpack Compose (الواجهة) + Rust (المعالجة الثقيلة)
 
 ---
 
-## 🏗️ البنية المعمارية
+## البنية المعمارية
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -44,63 +44,51 @@
 
 ---
 
-## 📂 هيكل المشروع
+## هيكل المشروع
 
 ```
 al-hosan-checker/
 ├── app/
 │   ├── build.gradle.kts          # Gradle config مع Compose + Rust
-│   ├── src/main/
-│   │   ├── AndroidManifest.xml
-│   │   ├── jniLibs/              # Rust .so files (generated)
-│   │   │   ├── arm64-v8a/
-│   │   │   ├── armeabi-v7a/
-│   │   │   └── x86_64/
-│   │   ├── java/com/alhosan/checker/
-│   │   │   ├── ui/
-│   │   │   │   ├── MainActivity.kt       # Activity + Navigation + AppHeader
-│   │   │   │   ├── theme/
-│   │   │   │   │   ├── Theme.kt          # Gold-on-Black theme
-│   │   │   │   │   └── Type.kt           # Arabic typography
-│   │   │   │   ├── i18n/
-│   │   │   │   │   └── Strings.kt        # Bilingual AR/EN strings
-│   │   │   │   ├── screens/
-│   │   │   │   │   ├── SplashScreen.kt   # شاشة البداية
-│   │   │   │   │   ├── LoginScreen.kt    # شاشة تسجيل الدخول
-│   │   │   │   │   ├── ResultScreen.kt   # شاشة النتائج (مع تصدير الصورة)
-│   │   │   │   │   └── HistoryScreen.kt  # شاشة السجل
-│   │   │   │   └── components/
-│   │   │   │       ├── AlHosanComponents.kt  # Reusable UI components
-│   │   │   │       └── Capturable.kt     # GraphicsLayer capture modifier
-│   │   │   ├── data/
-│   │   │   │   ├── model/
-│   │   │   │   │   └── Subscription.kt   # Data model
-│   │   │   │   └── repository/
-│   │   │   │       └── CheckerRepository.kt  # Repository layer
-│   │   │   ├── bridge/
-│   │   │   │   └── RustBridge.kt         # JNI bridge to Rust
-│   │   │   ├── util/
-│   │   │   │   └── ImageExporter.kt      # MediaStore PNG export
-│   │   │   └── viewmodel/
-│   │   │       └── CheckerViewModel.kt   # ViewModel
-│   │   └── res/
-│   │       ├── drawable/
-│   │       │   └── ic_alhosan_logo.png   # App logo
-│   │       ├── mipmap-*/                 # App icons (all densities)
-│   │       └── values/
-│   │           ├── strings.xml
-│   │           └── themes.xml
+│   └── src/main/
+│       ├── AndroidManifest.xml
+│       ├── jniLibs/              # Rust .so files (generated)
+│       │   ├── arm64-v8a/
+│       │   ├── armeabi-v7a/
+│       │   └── x86_64/
+│       ├── java/com/alhosan/checker/
+│       │   ├── ui/
+│       │   │   ├── MainActivity.kt
+│       │   │   ├── theme/
+│       │   │   ├── i18n/
+│       │   │   ├── screens/
+│       │   │   │   ├── SplashScreen.kt
+│       │   │   │   ├── LoginScreen.kt
+│       │   │   │   ├── ResultScreen.kt
+│       │   │   │   └── HistoryScreen.kt
+│       │   │   └── components/
+│       │   ├── data/
+│       │   ├── bridge/
+│       │   ├── util/
+│       │   └── viewmodel/
+│       └── res/
+│           ├── drawable/
+│           │   └── ic_alhosan_logo.png
+│           ├── mipmap-*/
+│           └── values/
+│               ├── strings.xml
+│               └── themes.xml
 ├── rust/
-│   ├── Cargo.toml                # Rust dependencies
-│   ├── build_android.sh          # Build script for Android
+│   ├── Cargo.toml
+│   ├── build_android.sh
 │   └── src/
-│       ├── lib.rs                # Rust library root
-│       ├── xtream.rs             # Xtream API checker
-│       ├── m3u.rs                # M3U parser + filter (rayon)
-│       └── jni_bridge.rs        # JNI bindings
+│       ├── lib.rs
+│       ├── xtream.rs
+│       ├── m3u.rs
+│       └── jni_bridge.rs
 ├── .github/workflows/
-│   └── build.yml                # CI/CD pipeline
-├── build.gradle.kts             # Root Gradle config
+│   └── build.yml
+├── build.gradle.kts
 ├── settings.gradle.kts
 ├── gradle.properties
 └── README.md
@@ -108,7 +96,7 @@ al-hosan-checker/
 
 ---
 
-## 🔨 البناء
+## البناء
 
 ### المتطلبات
 
@@ -136,16 +124,15 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
 ### بناء التطبيق
 
 ```bash
-# من المجلد الرئيسي
 ./gradlew assembleRelease
 ```
 
 ---
 
-## 🚀 الوظائف
+## الوظائف
 
 ### فحص اشتراكات Xtream Codes
-- فحص حالة الاشتراك (نشط/معطل)
+- فحص حالة الاشتراك (نشط / معطل)
 - تاريخ الانتهاء والإنشاء
 - عدد الأجهزة المتصلة والحد الأقصى
 - حساب عدد القنوات المباشرة والأفلام والمسلسلات
@@ -155,44 +142,43 @@ export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
 - تحليل سريع للقوائم الكبيرة (rayon parallelism)
 - فلترة حسب المجموعة أو الاسم
 - إزالة التكرارات
-- ترتيب أبجدي
 
 ### فحص دفعي (Batch Check)
-- فحص عدة اشتراكات بالتوازي
-- معالجة متوازية باستخدام rayon
+- فحص عدة اشتراكات بالتوازي عبر rayon
 
-### تصدير النتيجة كصورة (جديد)
-- التقاط كارد النتيجة عبر Compose `GraphicsLayer` (بديل html2canvas)
-- حفظ PNG تلقائياً في `Pictures/AlHosan` عبر MediaStore
-- يعمل على Android 10+ بدون أذونات، ويستخدم WRITE_EXTERNAL_STORAGE على Android 9 وأقل
+### تصدير النتيجة كصورة
+- التقاط كارد النتيجة عبر Android Canvas
+- حفظ PNG في `Pictures/AlHosan` عبر MediaStore
+- يعمل على Android 10+ بدون أذونات، وأقل عبر `WRITE_EXTERNAL_STORAGE`
 
-### واجهة المستخدم الديناميكية
-- الهيدر يبدّل العنوان حسب الشاشة:
-  - شاشة الدخول: شعار الحصان + "محرك الحصان الفاحص" + زر اللغة
-  - شاشة النتيجة: "تفاصيل الاشتراك" + زر الرجوع
-  - شاشة السجل: "سجل المحفوظات" + زر الرجوع
-- إخفاء زر "حفظ" عند فتح عنصر محفوظ من السجل (نفس سلوك HTML)
+### إطلاق فوري
+- شاشة البداية تظهر لحظة النقر على أيقونة التطبيق عبر `core-splashscreen`
+- لا انتظار، لا شاشة سوداء
+
+### واجهة المستخدم
+- تبديل اللغة (عربي / إنجليزي) في أي وقت
+- إخفاء زر "حفظ" عند فتح عنصر محفوظ من السجل
 - معالجة زر الرجوع للنظام عبر `BackHandler`
 
 ---
 
-## 🎨 التصميم
+## التصميم
 
-- **خلفية سوداء** (#000000)
-- **لون ذهبي** (#D4AF37) للعناصر الرئيسية
-- **سطح داكن** (#0A0A0A) للبطاقات
-- **حدود ذهبية داكنة** (#1F1A0F)
-- واجهة عربية بالكامل مع RTL
+- **خلفية سوداء** `#000000`
+- **لون ذهبي** `#D4AF37` للعناصر الرئيسية
+- **سطح داكن** `#0A0A0A` للبطاقات
+- **حدود ذهبية داكنة** `#1F1A0F`
+- واجهة عربية مع RTL كامل
 
 ---
 
-## 📱 المتطلبات
+## المتطلبات
 
 - Android 8.0 (API 26) أو أحدث
 - اتصال بالإنترنت
 
 ---
 
-## 📄 الرخصة
+## الرخصة
 
 هذا المشروع مفتوح المصدر.
