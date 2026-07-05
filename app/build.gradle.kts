@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.alhosan.checker"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.alhosan.checker"
@@ -57,7 +57,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
+        kotlinCompilerExtensionVersion = "1.5.15"
     }
 
     packaging {
@@ -70,8 +70,8 @@ android {
 }
 
 dependencies {
-    // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
+    // Compose BOM (2024.09+ provides Compose UI 1.7 which includes the GraphicsLayer API used by ImageExporter)
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
