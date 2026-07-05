@@ -45,6 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -65,6 +66,8 @@ import com.alhosan.checker.ui.i18n.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Must be called before super.onCreate() — shows splash instantly on tap
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -76,17 +79,9 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Main app composable — NO HEADER BAR.
- *
- * Matches the user's reference design (last 3 screenshots):
- *  - Content card starts directly at the top of the screen (below the status bar).
- *  - No title bar, no horse logo, no language button taking up a header row.
- *  - Back / language actions are small FLOATING circular buttons overlaid on top
- *    of the content, positioned at the top corners so they don't waste vertical space.
- *
- * SWIPE-BACK FIX:
- *  - Fade-only transitions (no slide) to avoid overlap glitches during the
- *    system back gesture.
+ * Main app composable.
+ * Splash → Login → Result / History.
+ * Fade-only transitions (no slide) to avoid overlap glitches during system back gesture.
  */
 @Composable
 fun AlHosanApp() {
@@ -162,7 +157,7 @@ fun AlHosanApp() {
             }
         }
 
-        // Global running-horse indicator shown on top of everything while checking
+        // Global running-horse indicator shown while checking
         if (isChecking) {
             RunningHorseFloating(lang = lang, modifier = Modifier.statusBarsPadding())
         }
@@ -170,11 +165,7 @@ fun AlHosanApp() {
 }
 
 /**
- * Small floating circular button overlaid at the top-start corner of the screen.
- * Uses statusBarsPadding so it sits below the system status bar (not under it).
- *
- * This replaces the old header bar entirely — no vertical space is wasted,
- * the content card starts from the very top just like the reference design.
+ * Floating back button — top-start corner, no wasted header space.
  */
 @Composable
 fun FloatingBackButton(
@@ -201,8 +192,7 @@ fun FloatingBackButton(
 }
 
 /**
- * Small floating circular language-toggle button at the top-end corner.
- * Only shown on the login screen (where there's no back button).
+ * Floating language toggle button — top-end corner, login screen only.
  */
 @Composable
 fun FloatingLanguageButton(
@@ -229,9 +219,7 @@ fun FloatingLanguageButton(
 }
 
 /**
- * Tiny floating "checking..." indicator (horse + text) shown at the top-center
- * while a subscription check is in progress. Overlaid on top of content so it
- * doesn't push the layout.
+ * Tiny floating checking indicator shown at the top-center while a check is running.
  */
 @Composable
 private fun RunningHorseFloating(lang: AppLang, modifier: Modifier = Modifier) {
