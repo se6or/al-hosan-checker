@@ -217,6 +217,80 @@ val AppLang.tErrNetwork: String get() = when (this) {
     AppLang.EN -> "No internet connection or server is down"
 }
 
+// ─── Detailed diagnostic error messages (new error-diagnosis system) ───
+// Each error code from CheckerRepository maps to a precise user-facing message
+// so the user knows exactly WHY the check failed, not just "network error".
+val AppLang.tErrDnsFailed: String get() = when (this) {
+    AppLang.AR -> "تعذر حل اسم السيرفر (DNS) — تحقق من الرابط"
+    AppLang.EN -> "DNS resolution failed — check the server URL"
+}
+val AppLang.tErrConnRefused: String get() = when (this) {
+    AppLang.AR -> "الاتصال مرفوض — المنفذ مغلق أو محظور من السيرفر"
+    AppLang.EN -> "Connection refused — port closed or blocked by server"
+}
+val AppLang.tErrConnReset: String get() = when (this) {
+    AppLang.AR -> "تم قطع الاتصال من السيرفر — حاول مجدداً"
+    AppLang.EN -> "Connection reset by server — try again"
+}
+val AppLang.tErrSslFailed: String get() = when (this) {
+    AppLang.AR -> "فشل شهادة SSL — السيرفر يستخدم شهادة غير موثقة"
+    AppLang.EN -> "SSL handshake failed — server uses an untrusted certificate"
+}
+val AppLang.tErrEmptyResponse: String get() = when (this) {
+    AppLang.AR -> "السيرفر رد بجواب فارغ — قد يكون السيرفر معطلاً"
+    AppLang.EN -> "Server returned an empty response — server may be down"
+}
+val AppLang.tErrParseFailed: String get() = when (this) {
+    AppLang.AR -> "رد السيرفر غير صالح JSON — ليس سيرفر Xtream"
+    AppLang.EN -> "Invalid JSON response — not an Xtream server"
+}
+val AppLang.tErrNetworkUnreachable: String get() = when (this) {
+    AppLang.AR -> "الشبكة غير متاحة — تحقق من اتصال الإنترنت"
+    AppLang.EN -> "Network unreachable — check your internet connection"
+}
+val AppLang.tErrRedirectLoop: String get() = when (this) {
+    AppLang.AR -> "السيرفر يدور في إعادة توجيه لا نهائية"
+    AppLang.EN -> "Server is stuck in a redirect loop"
+}
+val AppLang.tErrInvalidInput: String get() = when (this) {
+    AppLang.AR -> "يرجى ملء جميع الحقول المطلوبة بشكل صحيح"
+    AppLang.EN -> "Please fill all required fields correctly"
+}
+val AppLang.tErrUnknown: String get() = when (this) {
+    AppLang.AR -> "خطأ غير معروف — حاول مرة أخرى"
+    AppLang.EN -> "Unknown error — try again"
+}
+
+/**
+ * Map a repository error code to a user-facing message in the current language.
+ * Falls back to tErrNetwork for unrecognized codes.
+ */
+fun AppLang.diagnosticMessage(errorCode: String): String = when (errorCode) {
+    "auth_failed" -> tErrAuth
+    "not_xtream" -> tErrNotXtream
+    "timeout" -> tErrTimeout
+    "dns_failed" -> tErrDnsFailed
+    "connection_refused" -> tErrConnRefused
+    "connection_reset" -> tErrConnReset
+    "ssl_failed" -> tErrSslFailed
+    "empty_response" -> tErrEmptyResponse
+    "parse_failed" -> tErrParseFailed
+    "network_unreachable" -> tErrNetworkUnreachable
+    "redirect_loop" -> tErrRedirectLoop
+    "invalid_input" -> tErrInvalidInput
+    "unknown" -> tErrUnknown
+    else -> {
+        // HTTP error codes (http_4xx, http_5xx)
+        if (errorCode.startsWith("http_")) {
+            val code = errorCode.removePrefix("http_")
+            if (this == AppLang.AR) "خطأ HTTP $code من السيرفر"
+            else "HTTP $code error from server"
+        } else {
+            tErrNetwork
+        }
+    }
+}
+
 // Progress labels
 val AppLang.prog1: String get() = when (this) {
     AppLang.AR -> "جارِ الاتصال بالسيرفر..."

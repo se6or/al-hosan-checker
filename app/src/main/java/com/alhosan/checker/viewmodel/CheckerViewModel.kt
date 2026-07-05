@@ -216,14 +216,9 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                         }
                     },
                     onFailure = { exception ->
-                        val msg = when (exception.message) {
-                            "auth_failed" -> _lang.value.tErrAuth
-                            "not_xtream" -> _lang.value.tErrNotXtream
-                            "timeout" -> _lang.value.tErrTimeout
-                            "network" -> _lang.value.tErrNetwork
-                            "http_error" -> _lang.value.tErrNetwork
-                            else -> _lang.value.tErrNetwork
-                        }
+                        // Use the new diagnostic system — precise, user-facing message
+                        val errorCode = exception.message ?: "unknown"
+                        val msg = _lang.value.diagnosticMessage(errorCode)
                         _state.value = CheckerState.Error(msg)
                     }
                 )
@@ -231,7 +226,8 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                 _isChecking.value = false
                 _progressPhase.value = ProgressPhase.IDLE
                 _progressPercent.value = 0
-                _state.value = CheckerState.Error(_lang.value.tErrNetwork)
+                val errorCode = e.message ?: "unknown"
+                _state.value = CheckerState.Error(_lang.value.diagnosticMessage(errorCode))
             }
         }
     }

@@ -87,17 +87,14 @@ fun ResultScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Handle system back button / gesture — matches HTML's handleAndroidBack.
-    // onBack already calls resetState + popBackStack, so we don't double-call here.
+    // Handle system back button / gesture — pop back to the previous screen
+    // (history if we came from history, login if we came from login).
     BackHandler(enabled = true) { onBack() }
 
-    // Navigate back if no subscription data
-    LaunchedEffect(subscription) {
-        if (subscription == null) {
-            onBack()
-        }
-    }
-
+    // If there's no subscription to display, just render nothing.
+    // We DON'T call onBack() from LaunchedEffect here because that created a
+    // loop: resetState() -> subscription=null -> onBack() -> popBackStack -> ...
+    // which is why restoring from history and pressing back jumped to login.
     if (subscription == null) {
         return
     }
