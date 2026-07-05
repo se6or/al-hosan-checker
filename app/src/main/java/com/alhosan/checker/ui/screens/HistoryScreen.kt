@@ -1,5 +1,6 @@
 package com.alhosan.checker.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -67,6 +68,11 @@ fun HistoryScreen(
     val lang by viewModel.lang.collectAsState()
     val toastMessage by viewModel.toastMessage.collectAsState()
     val modalMessage by viewModel.modalMessage.collectAsState()
+
+    // Handle system back button / gesture — matches HTML's handleAndroidBack
+    BackHandler(enabled = true) {
+        onBack()
+    }
 
     // Clear toast after delay
     LaunchedEffect(toastMessage) {

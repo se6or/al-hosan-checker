@@ -189,6 +189,16 @@ val AppLang.tAlreadySaved: String get() = when (this) {
     AppLang.EN -> "Subscription already saved"
 }
 
+// Export image status (used by the new export-as-image feature)
+val AppLang.tExportOk: String get() = when (this) {
+    AppLang.AR -> "تم حفظ الصورة في المعرض"
+    AppLang.EN -> "Image saved to gallery"
+}
+val AppLang.tExportFail: String get() = when (this) {
+    AppLang.AR -> "فشل تصدير الصورة، حاول مجدداً"
+    AppLang.EN -> "Failed to export image, try again"
+}
+
 // Error messages
 val AppLang.tErrTimeout: String get() = when (this) {
     AppLang.AR -> "انتهى وقت الاتصال، السيرفر بطيء أو مغلق"
