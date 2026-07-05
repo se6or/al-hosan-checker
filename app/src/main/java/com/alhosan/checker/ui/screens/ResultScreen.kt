@@ -59,6 +59,7 @@ import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.viewmodel.CheckerViewModel
+import com.alhosan.checker.ui.i18n.Strings.*
 import kotlinx.coroutines.delay
 
 /**
