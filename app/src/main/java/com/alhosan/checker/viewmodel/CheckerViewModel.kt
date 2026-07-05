@@ -11,7 +11,7 @@ import com.alhosan.checker.data.model.HistoryItem
 import com.alhosan.checker.data.model.ProgressPhase
 import com.alhosan.checker.data.model.Subscription
 import com.alhosan.checker.data.repository.CheckerRepository
-import com.alhosan.checker.ui.i18n.Strings.*
+import com.alhosan.checker.ui.i18n.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
