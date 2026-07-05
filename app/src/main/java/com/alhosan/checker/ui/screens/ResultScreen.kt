@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -76,7 +77,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ResultScreen(
     onBack: () -> Unit,
-    viewModel: CheckerViewModel = viewModel()
+    viewModel: CheckerViewModel = viewModel(),
+    floatingHeader: @Composable () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val lang by viewModel.lang.collectAsState()
@@ -110,7 +112,12 @@ fun ResultScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Black).statusBarsPadding()) {
+        // Floating back button (top-start corner, overlays the card)
+        Box(modifier = Modifier.align(Alignment.TopStart)) {
+            floatingHeader()
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

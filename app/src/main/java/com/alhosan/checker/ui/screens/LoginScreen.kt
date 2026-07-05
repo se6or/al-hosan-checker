@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -49,6 +50,7 @@ import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanProgressBar
 import com.alhosan.checker.ui.components.AlHosanToast
 import com.alhosan.checker.ui.components.RunningHorseLogo
+import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.Gold
@@ -60,12 +62,17 @@ import com.alhosan.checker.ui.i18n.*
 /**
  * Login/Check screen - matching HTML reference's #scr-login
  * Features: Xtream/M3U tabs, paste buttons, progress bar, running horse animation
+ *
+ * NO HEADER BAR — the card starts directly at the top of the screen (below
+ * status bar) just like the reference design. The language toggle is a small
+ * floating circular button passed in via [floatingHeader] and overlaid on top.
  */
 @Composable
 fun LoginScreen(
     onResultReady: () -> Unit,
     onHistoryClick: () -> Unit,
-    viewModel: CheckerViewModel = viewModel()
+    viewModel: CheckerViewModel = viewModel(),
+    floatingHeader: @Composable () -> Unit = {}
 ) {
     val host by viewModel.host.collectAsState()
     val username by viewModel.username.collectAsState()
@@ -112,10 +119,18 @@ fun LoginScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(14.dp)
+            .background(Black)
+            .statusBarsPadding()
     ) {
+        // Floating language button (top-end corner, overlays the card)
+        Box(modifier = Modifier.align(Alignment.TopEnd)) {
+            floatingHeader()
+        }
+
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp)
         ) {
             // ─── Card container matching HTML reference's .card ───
             Card(

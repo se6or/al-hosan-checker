@@ -4,14 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,9 +26,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Language
@@ -42,10 +39,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -79,20 +76,17 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Main app composable with full 4-screen navigation matching HTML reference.
- * Routes: splash → login → result, login → history → result
+ * Main app composable — NO HEADER BAR.
  *
- * HEADER DESIGN (matches the user's reference app — last 3 screenshots):
- *  - Minimal header: centered title + ONE circular back-arrow button on the trailing edge.
- *  - On the login screen the trailing button is the language toggle (circular globe icon).
- *  - On splash there is no header at all (just the animated logo).
- *  - No more triple-element header (lang + logo + back) — that caused visual clutter.
+ * Matches the user's reference design (last 3 screenshots):
+ *  - Content card starts directly at the top of the screen (below the status bar).
+ *  - No title bar, no horse logo, no language button taking up a header row.
+ *  - Back / language actions are small FLOATING circular buttons overlaid on top
+ *    of the content, positioned at the top corners so they don't waste vertical space.
  *
  * SWIPE-BACK FIX:
- *  - The default `slideIntoContainer`/`slideOutOfContainer` transitions caused overlap
- *    glitches when the system back gesture was used (one screen sliding over another).
- *  - Replaced with `fadeIn`/`fadeOut` (no horizontal movement) so there's no overlap
- *    at all — the new screen just fades in over the old one.
+ *  - Fade-only transitions (no slide) to avoid overlap glitches during the
+ *    system back gesture.
  */
 @Composable
 fun AlHosanApp() {
@@ -100,238 +94,181 @@ fun AlHosanApp() {
     val viewModel: CheckerViewModel = viewModel()
     val lang by viewModel.lang.collectAsState()
     val isChecking by viewModel.isChecking.collectAsState()
-    val state by viewModel.state.collectAsState()
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            NavHost(
-                navController = navController,
-                startDestination = "splash",
-                // Use fade-only transitions to avoid swipe-back overlap glitches.
-                // (Slide transitions stack two screens side-by-side during the gesture,
-                //  which caused the visible overlap reported by the user.)
-                enterTransition = { fadeIn(tween(220)) },
-                exitTransition = { fadeOut(tween(180)) },
-                popEnterTransition = { fadeIn(tween(220)) },
-                popExitTransition = { fadeOut(tween(180)) }
-            ) {
-                composable("splash") {
-                    SplashScreen(
-                        onSplashComplete = {
-                            navController.navigate("login") {
-                                popUpTo("splash") { inclusive = true }
-                            }
+    Box(modifier = Modifier.fillMaxSize().background(Black)) {
+        NavHost(
+            navController = navController,
+            startDestination = "splash",
+            enterTransition = { fadeIn(tween(220)) },
+            exitTransition = { fadeOut(tween(180)) },
+            popEnterTransition = { fadeIn(tween(220)) },
+            popExitTransition = { fadeOut(tween(180)) }
+        ) {
+            composable("splash") {
+                SplashScreen(
+                    onSplashComplete = {
+                        navController.navigate("login") {
+                            popUpTo("splash") { inclusive = true }
                         }
-                    )
-                }
+                    }
+                )
+            }
 
-                composable("login") {
-                    AppHeader(
-                        lang = lang,
-                        title = lang.splash,
-                        trailingAction = HeaderAction.Language,
-                        isRunning = isChecking,
-                        onLangToggle = viewModel::toggleLang,
-                        onBack = {}
-                    )
-                    LoginScreen(
-                        onResultReady = {
-                            navController.navigate("result")
-                        },
-                        onHistoryClick = {
-                            navController.navigate("history")
-                        },
-                        viewModel = viewModel
-                    )
-                }
+            composable("login") {
+                LoginScreen(
+                    onResultReady = { navController.navigate("result") },
+                    onHistoryClick = { navController.navigate("history") },
+                    viewModel = viewModel,
+                    floatingHeader = {
+                        FloatingLanguageButton(
+                            onClick = viewModel::toggleLang,
+                            modifier = Modifier.statusBarsPadding()
+                        )
+                    }
+                )
+            }
 
-                composable("result") {
-                    AppHeader(
-                        lang = lang,
-                        title = lang.resTitle,
-                        trailingAction = HeaderAction.Back,
-                        isRunning = isChecking,
-                        onLangToggle = viewModel::toggleLang,
-                        onBack = {
-                            viewModel.resetState()
-                            navController.popBackStack()
-                        }
-                    )
-                    ResultScreen(
-                        onBack = {
-                            viewModel.resetState()
-                            navController.popBackStack()
-                        },
-                        viewModel = viewModel
-                    )
-                }
+            composable("result") {
+                ResultScreen(
+                    onBack = {
+                        viewModel.resetState()
+                        navController.popBackStack()
+                    },
+                    viewModel = viewModel,
+                    floatingHeader = {
+                        FloatingBackButton(
+                            onClick = {
+                                viewModel.resetState()
+                                navController.popBackStack()
+                            },
+                            modifier = Modifier.statusBarsPadding()
+                        )
+                    }
+                )
+            }
 
-                composable("history") {
-                    AppHeader(
-                        lang = lang,
-                        title = lang.hTitle,
-                        trailingAction = HeaderAction.Back,
-                        isRunning = false,
-                        onLangToggle = viewModel::toggleLang,
-                        onBack = { navController.popBackStack() }
-                    )
-                    HistoryScreen(
-                        onBack = { navController.popBackStack() },
-                        onRestore = {
-                            navController.navigate("result")
-                        },
-                        viewModel = viewModel
-                    )
-                }
+            composable("history") {
+                HistoryScreen(
+                    onBack = { navController.popBackStack() },
+                    onRestore = { navController.navigate("result") },
+                    viewModel = viewModel,
+                    floatingHeader = {
+                        FloatingBackButton(
+                            onClick = { navController.popBackStack() },
+                            modifier = Modifier.statusBarsPadding()
+                        )
+                    }
+                )
             }
         }
-    }
-}
 
-/** What the trailing circular button in the header should do. */
-enum class HeaderAction { None, Back, Language }
-
-/**
- * Minimal app header — matches the user's reference design.
- *
- * Layout:
- *   - Centered gold title (the screen name)
- *   - ONE circular button on the trailing edge:
- *       * Language toggle (globe icon) on the login screen
- *       * Back arrow on result / history screens
- *   - No leading element, no logo, no double-button clutter.
- *
- * This is the same minimal pattern used in the reference app screenshots:
- * centered title + single circular action button on the right.
- */
-@Composable
-fun AppHeader(
-    lang: AppLang,
-    title: String,
-    trailingAction: HeaderAction,
-    isRunning: Boolean,
-    onLangToggle: () -> Unit,
-    onBack: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Black)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Leading spacer — keeps the title visually centered.
-        // Same width as the trailing circular button (44dp) for symmetry.
-        Spacer(modifier = Modifier.width(44.dp))
-
-        // Center: title (or running horse animation while checking)
-        if (isRunning) {
-            RunningHorseHeader(lang)
-        } else {
-            Text(
-                text = title,
-                color = Gold,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Trailing: single circular action button
-        when (trailingAction) {
-            HeaderAction.None -> Spacer(modifier = Modifier.width(44.dp))
-            HeaderAction.Language -> CircleHeaderButton(
-                onClick = onLangToggle,
-                content = {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            )
-            HeaderAction.Back -> CircleHeaderButton(
-                onClick = onBack,
-                content = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            )
+        // Global running-horse indicator shown on top of everything while checking
+        if (isChecking) {
+            RunningHorseFloating(lang = lang, modifier = Modifier.statusBarsPadding())
         }
     }
 }
 
 /**
- * Single circular header button — same shape as the reference app's
- * circular action button (yellow icon on dark circular background with
- * a thin gold border).
+ * Small floating circular button overlaid at the top-start corner of the screen.
+ * Uses statusBarsPadding so it sits below the system status bar (not under it).
+ *
+ * This replaces the old header bar entirely — no vertical space is wasted,
+ * the content card starts from the very top just like the reference design.
  */
 @Composable
-private fun CircleHeaderButton(
+fun FloatingBackButton(
     onClick: () -> Unit,
-    content: @Composable () -> Unit
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
-            .size(44.dp)
+        modifier = modifier
+            .padding(start = 14.dp, top = 8.dp)
+            .size(40.dp)
             .clip(CircleShape)
             .background(SurfaceBlack, CircleShape)
             .border(1.dp, BorderGold, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        content()
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            tint = Gold,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
 /**
- * Running horse animation for header — bouncing horse logo during check.
- * Shown in place of the title while a subscription check is in progress.
- *
- * Note: this composable is invoked from inside a [Row], so it receives a
- * `RowScope`-bound modifier (Modifier.weight(1f)) from the caller instead
- * of trying to call .weight() here (which would fail because this function's
- * own Modifier is not in a RowScope).
+ * Small floating circular language-toggle button at the top-end corner.
+ * Only shown on the login screen (where there's no back button).
  */
 @Composable
-private fun RowScope.RunningHorseHeader(lang: AppLang) {
-    val infiniteTransition = rememberInfiniteTransition(label = "headerHorse")
+fun FloatingLanguageButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .padding(end = 14.dp, top = 8.dp)
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(SurfaceBlack, CircleShape)
+            .border(1.dp, BorderGold, CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Language,
+            contentDescription = "Language",
+            tint = Gold,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+/**
+ * Tiny floating "checking..." indicator (horse + text) shown at the top-center
+ * while a subscription check is in progress. Overlaid on top of content so it
+ * doesn't push the layout.
+ */
+@Composable
+private fun RunningHorseFloating(lang: AppLang, modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "floatingHorse")
     val offsetY by infiniteTransition.animateFloat(
         initialValue = 0f,
-        targetValue = -6f,
+        targetValue = -4f,
         animationSpec = infiniteRepeatable(
             animation = tween(400),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "headerHorseY"
+        label = "floatingHorseY"
     )
 
     Row(
-        modifier = Modifier.weight(1f),
+        modifier = modifier
+            .padding(top = 8.dp)
+            .clip(CircleShape)
+            .background(SurfaceBlack, CircleShape)
+            .border(1.dp, BorderGold, CircleShape)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Image(
             painter = painterResource(id = R.drawable.ic_alhosan_logo),
             contentDescription = null,
             modifier = Modifier
-                .size(24.dp)
+                .size(18.dp)
                 .offset(y = offsetY.dp),
             contentScale = ContentScale.Fit
         )
-        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = if (lang == AppLang.AR) "الفحص جارٍ..." else "Checking...",
             color = Gold,
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 14.sp
+            fontSize = 12.sp
         )
     }
 }
