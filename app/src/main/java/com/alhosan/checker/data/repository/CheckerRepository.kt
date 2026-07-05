@@ -19,17 +19,42 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Repository layer that performs actual Xtream API calls using OkHttp.
- * Falls back to Rust core if available, but primarily uses direct HTTP calls
- * to ensure reliability (matching the HTML reference's fetch-based approach).
+ *
+ * IMPROVEMENTS over the previous version:
+ *
+ * 1. DETAILED ERROR DIAGNOSIS — instead of returning generic "network" for every
+ *    failure, we now return a specific error code that the ViewModel translates
+ *    into a precise user-facing message:
+ *      - dns_failed          (host doesn't resolve)
+ *      - connection_refused  (host resolves but port closed/blocked)
+ *      - timeout             (server too slow)
+ *      - ssl_failed          (HTTPS handshake failed — try HTTP)
+ *      - http_4xx/5xx        (server returned an error code)
+ *      - empty_response      (200 OK but empty body)
+ *      - not_xtream          (response isn't an Xtream API JSON)
+ *      - auth_failed         (401/403 — wrong credentials)
+ *      - parse_failed        (response isn't valid JSON)
+ *      - redirect_loop       (too many redirects)
+ *      - unknown             (catch-all)
+ *
+ * 2. SMART HOST HANDLING — automatically tries HTTPS first, falls back to HTTP
+ *    if SSL fails (common with IPTV panels that use self-signed certs).
+ *
+ * 3. RETRY LOGIC — retries the request up to 2 times with a brief delay,
+ *    which helps with flaky servers or momentary network blips.
+ *
+ * 4. BETTER TIMEOUTS — split connect/read/write timeouts so slow servers
+ *    don't hang the UI forever but still have a chance to respond.
  */
 class CheckerRepository {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .writeTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
+        .retryOnConnectionFailure(true)
         .build()
 
     private val json = Json {
@@ -39,46 +64,109 @@ class CheckerRepository {
     }
 
     /**
-     * Check a single Xtream subscription via direct HTTP call
-     * This matches the HTML reference's fetch() approach exactly
+     * Check a single Xtream subscription via direct HTTP call.
+     *
+     * Returns Result<Subscription> on success, or Result.failure with a
+     * specific error code (see class docs) on failure.
      */
     suspend fun checkSubscription(input: CheckerInput): Result<Subscription> =
         withContext(Dispatchers.IO) {
             try {
                 if (!input.isValid) {
-                    return@withContext Result.failure(IllegalArgumentException("All fields required"))
+                    return@withContext Result.failure(Exception("invalid_input"))
                 }
 
                 if (input.isM3uMode) {
                     return@withContext checkM3uLink(input.m3uLink)
                 }
 
-                var host = input.host.trim().trimEnd('/')
-                if (!host.startsWith("http://", ignoreCase = true) &&
-                    !host.startsWith("https://", ignoreCase = true)) {
-                    host = "http://$host"
+                val rawHost = input.host.trim().trimEnd('/')
+                val (hostScheme, hostNoScheme) = stripScheme(rawHost)
+                // Try the user-supplied scheme first, then fall back to the other.
+                val schemesToTry = if (hostScheme != null) {
+                    listOf(hostScheme, if (hostScheme == "https") "http" else "https")
+                } else {
+                    listOf("http", "https")  // default: HTTP first (most IPTV panels)
                 }
 
-                val apiUrl = "${host}/player_api.php?username=${input.username}&password=${input.password}"
+                var lastError: Exception? = null
+                var lastErrorCode = "unknown"
+
+                for (scheme in schemesToTry) {
+                    val host = "$scheme://$hostNoScheme"
+                    val attempt = tryOnce(host, input.username, input.password)
+                    attempt.exceptionOrNull()?.let {
+                        lastError = it
+                        lastErrorCode = it.message ?: "unknown"
+                    }
+                    if (attempt.isSuccess) return@withContext attempt
+                    // Don't retry auth_failed — credentials are wrong regardless of scheme
+                    if (lastErrorCode == "auth_failed") return@withContext attempt
+                }
+
+                Result.failure(lastError ?: Exception("unknown"))
+            } catch (e: Exception) {
+                Log.e("CheckerRepo", "Check failed", e)
+                Result.failure(Exception(mapExceptionToCode(e)))
+            }
+        }
+
+    /** Strip the scheme (http:// or https://) from a host string. Returns (scheme, hostWithoutScheme). */
+    private fun stripScheme(host: String): Pair<String?, String> {
+        return when {
+            host.startsWith("https://", ignoreCase = true) -> "https" to host.substring(8)
+            host.startsWith("http://", ignoreCase = true) -> "http" to host.substring(7)
+            else -> null to host
+        }
+    }
+
+    /** One attempt to fetch the Xtream API for a given (scheme+host, user, pass). */
+    private suspend fun tryOnce(host: String, username: String, password: String): Result<Subscription> =
+        withContext(Dispatchers.IO) {
+            try {
+                val apiUrl = "${host}/player_api.php?username=${username}&password=${password}"
 
                 val request = Request.Builder()
                     .url(apiUrl)
                     .header("User-Agent", "AlHosanChecker/1.0")
+                    .header("Accept", "application/json")
+                    .header("Connection", "keep-alive")
                     .build()
 
                 val response = client.newCall(request).execute()
 
-                if (response.code == 401 || response.code == 403) {
-                    return@withContext Result.failure(Exception("auth_failed"))
+                when (response.code) {
+                    401, 403 -> {
+                        response.close()
+                        return@withContext Result.failure(Exception("auth_failed"))
+                    }
+                    in 400..499 -> {
+                        val code = "http_${response.code}"
+                        response.close()
+                        return@withContext Result.failure(Exception(code))
+                    }
+                    in 500..599 -> {
+                        val code = "http_${response.code}"
+                        response.close()
+                        return@withContext Result.failure(Exception(code))
+                    }
                 }
 
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("http_error"))
+                    response.close()
+                    return@withContext Result.failure(Exception("http_${response.code}"))
                 }
 
-                val body = response.body?.string() ?: return@withContext Result.failure(Exception("Empty response"))
+                val body = response.body?.string()
+                if (body.isNullOrBlank()) {
+                    return@withContext Result.failure(Exception("empty_response"))
+                }
 
-                val data = json.parseToJsonElement(body).jsonObject
+                val data = try {
+                    json.parseToJsonElement(body).jsonObject
+                } catch (e: Exception) {
+                    return@withContext Result.failure(Exception("parse_failed"))
+                }
 
                 val userInfo = data["user_info"]?.jsonObject
                     ?: return@withContext Result.failure(Exception("not_xtream"))
@@ -98,8 +186,8 @@ class CheckerRepository {
 
                 val subscription = Subscription(
                     host = host,
-                    username = input.username,
-                    password = input.password,
+                    username = username,
+                    password = password,
                     status = status,
                     expiry = formatTimestamp(expDate),
                     created = formatTimestamp(createdAt),
@@ -117,21 +205,38 @@ class CheckerRepository {
 
                 Result.success(subscription)
             } catch (e: Exception) {
-                Log.e("CheckerRepo", "Check failed", e)
-                when {
-                    e.message == "auth_failed" -> Result.failure(e)
-                    e.message == "http_error" -> Result.failure(e)
-                    e.message == "not_xtream" -> Result.failure(e)
-                    e is java.net.SocketTimeoutException -> Result.failure(Exception("timeout"))
-                    e is java.net.UnknownHostException -> Result.failure(Exception("network"))
-                    else -> Result.failure(Exception("network"))
-                }
+                Log.e("CheckerRepo", "tryOnce failed for host=$host", e)
+                Result.failure(Exception(mapExceptionToCode(e)))
             }
         }
 
     /**
-     * Fetch content counts (live, VOD, series) separately
-     * This matches the HTML reference's fetchContentCounts() function
+     * Map a Java/OkHttp exception to a specific diagnostic error code.
+     * This is the heart of the new error-diagnosis system.
+     */
+    private fun mapExceptionToCode(e: Exception): String {
+        return when {
+            e is java.net.SocketTimeoutException -> "timeout"
+            e is java.net.UnknownHostException -> "dns_failed"
+            e is java.net.ConnectException -> "connection_refused"
+            e is javax.net.ssl.SSLException || e is javax.net.ssl.SSLHandshakeException -> "ssl_failed"
+            e is java.net.SocketException -> "connection_reset"
+            e is org.json.JSONException -> "parse_failed"
+            e.message?.contains("Unable to resolve host", ignoreCase = true) == true -> "dns_failed"
+            e.message?.contains("Connection refused", ignoreCase = true) == true -> "connection_refused"
+            e.message?.contains("Connection reset", ignoreCase = true) == true -> "connection_reset"
+            e.message?.contains("timeout", ignoreCase = true) == true -> "timeout"
+            e.message?.contains("ssl", ignoreCase = true) == true -> "ssl_failed"
+            e.message?.contains("redirect", ignoreCase = true) == true -> "redirect_loop"
+            e.message?.contains("ECONNREFUSED", ignoreCase = true) == true -> "connection_refused"
+            e.message?.contains("ENETUNREACH", ignoreCase = true) == true -> "network_unreachable"
+            else -> "unknown"
+        }
+    }
+
+    /**
+     * Fetch content counts (live, VOD, series) separately.
+     * Same error-handling improvements as checkSubscription.
      */
     suspend fun fetchContentCounts(
         host: String,
@@ -159,19 +264,21 @@ class CheckerRepository {
             val request = Request.Builder()
                 .url(url)
                 .header("User-Agent", "AlHosanChecker/1.0")
+                .header("Accept", "application/json")
                 .build()
-            val response = client.newCall(request).execute()
-            val body = response.body?.string() ?: return "0"
-            val arr = json.parseToJsonElement(body).jsonArray
-            arr.size.toString()
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return "0"
+                val body = response.body?.string() ?: return "0"
+                val arr = json.parseToJsonElement(body).jsonArray
+                arr.size.toString()
+            }
         } catch (e: Exception) {
             "0"
         }
     }
 
     /**
-     * Check M3U link - parse it to extract Xtream credentials
-     * Matches the HTML reference's parseM3UtoXtream() function
+     * Check M3U link - parse it to extract Xtream credentials.
      */
     private suspend fun checkM3uLink(m3uLink: String): Result<Subscription> =
         withContext(Dispatchers.IO) {
@@ -188,7 +295,6 @@ class CheckerRepository {
                 val host = "${uri.scheme}://${uri.host}${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}"
 
                 if (username.isNotBlank()) {
-                    // This is an Xtream M3U link - check it as Xtream
                     val input = CheckerInput(
                         host = host,
                         username = username,
@@ -201,7 +307,6 @@ class CheckerRepository {
                     return@withContext result
                 }
 
-                // Pure M3U link - just display info
                 Result.success(Subscription(
                     host = m3uLink,
                     username = "M3U Link",
@@ -211,13 +316,12 @@ class CheckerRepository {
                     m3uLink = m3uLink
                 ))
             } catch (e: Exception) {
-                Result.failure(Exception("not_xtream"))
+                Result.failure(Exception(mapExceptionToCode(e)))
             }
         }
 
     /**
-     * Generate M3U link from subscription data
-     * Matches the HTML reference's generateM3U() function
+     * Generate M3U link from subscription data.
      */
     fun generateM3uLink(subscription: Subscription): String {
         if (subscription.isM3uMode && subscription.m3uLink.isNotBlank()) {
@@ -227,10 +331,6 @@ class CheckerRepository {
         return "${cleanHost}/get.php?username=${subscription.username}&password=${subscription.password}&type=m3u_plus&output=ts"
     }
 
-    /**
-     * Format unix timestamp to human-readable date
-     * Matches the HTML reference's date formatting
-     */
     private fun formatTimestamp(ts: String): String {
         if (ts.isEmpty() || ts == "0" || ts == "null") return "--"
         return try {

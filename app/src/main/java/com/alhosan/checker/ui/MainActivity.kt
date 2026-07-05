@@ -145,7 +145,14 @@ fun AlHosanApp() {
             composable("result") {
                 ResultScreen(
                     onBack = {
-                        viewModel.resetState()
+                        // Don't resetState here — popBackStack returns to the
+                        // previous screen (history or login). The state will be
+                        // reset when a fresh check starts or when the user navigates
+                        // back to login explicitly.
+                        //
+                        // Resetting here caused a bug: when restoring from history
+                        // and pressing back, the state was cleared which made
+                        // popBackStack skip history and jump straight to login.
                         navController.popBackStack()
                     },
                     viewModel = viewModel
@@ -155,7 +162,13 @@ fun AlHosanApp() {
             composable("history") {
                 HistoryScreen(
                     onBack = { navController.popBackStack() },
-                    onRestore = { navController.navigate("result") },
+                    onRestore = {
+                        // Sequential navigation: history -> result.
+                        // Don't popUpTo login — that would skip history on back.
+                        // Just navigate to result, so back from result returns to history,
+                        // then back from history returns to login.
+                        navController.navigate("result")
+                    },
                     viewModel = viewModel
                 )
             }
