@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.alhosan.checker"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
@@ -22,8 +22,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // Public signing info - this is an open source project
-            // The keystore is committed to the repo for reproducible builds
             storeFile = rootProject.file("alhosan-release.keystore")
             storePassword = "alhosan2024"
             keyAlias = "alhosan"
@@ -70,7 +68,7 @@ android {
 }
 
 dependencies {
-    // Compose BOM (2024.09+ provides Compose UI 1.7 which includes the GraphicsLayer API used by ImageExporter)
+    // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2024.09.02")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
@@ -82,6 +80,7 @@ dependencies {
 
     // Core
     implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
