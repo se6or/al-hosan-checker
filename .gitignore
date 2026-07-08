@@ -1,0 +1,31 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android specific
+app/build/
+app/release/
+app/debug/
+*.apk
+*.aab
+
+# Keystore
+alhosan-release.keystore
+*.jks
+
+# Rust
+rust/target/
+rust/**/target/
+rust/Cargo.lock
