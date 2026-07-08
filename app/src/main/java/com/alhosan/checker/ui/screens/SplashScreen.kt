@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import com.alhosan.checker.ui.theme.Black
+import kotlinx.coroutines.delay
 
 /**
  * In-app splash screen.
@@ -22,8 +23,10 @@ import com.alhosan.checker.ui.theme.Black
 fun SplashScreen(
     onSplashComplete: () -> Unit
 ) {
-    // Navigate to login immediately — no image, no delay.
+    // Keep one short frame after the system splash so the login route enters
+    // with the same right-to-left transition as the rest of the app.
     LaunchedEffect(Unit) {
+        delay(120)
         onSplashComplete()
     }
 
