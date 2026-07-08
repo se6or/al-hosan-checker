@@ -87,12 +87,6 @@ object ImageExporter {
                 resolver.update(imageUri, contentValues, null, null)
             }
 
-            Toast.makeText(
-                context,
-                "Saved to Pictures/AlHosan/${fileName}.png",
-                Toast.LENGTH_SHORT
-            ).show()
-
             true
         } catch (e: Exception) {
             e.printStackTrace()
