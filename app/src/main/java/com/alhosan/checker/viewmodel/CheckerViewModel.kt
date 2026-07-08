@@ -209,8 +209,19 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                             _state.value = CheckerState.Success(subscription)
                             showToast(_lang.value.tD)
 
-                            // Fetch content counts in background
-                            if (!subscription.isM3uMode) {
+                            // Fetch content counts in background whenever we have
+                            // real Xtream credentials — including links entered
+                            // through M3U mode. Playlist-only M3U results already
+                            // carry their parsed counts and use password "--".
+                            if (subscription.host.startsWith("http") &&
+                                subscription.username.isNotBlank() &&
+                                subscription.username != "M3U Link" &&
+                                subscription.password.isNotBlank() &&
+                                subscription.password != "--" &&
+                                subscription.liveCount == "0" &&
+                                subscription.movieCount == "0" &&
+                                subscription.seriesCount == "0"
+                            ) {
                                 fetchContentCounts(subscription)
                             }
                         }
