@@ -9,6 +9,7 @@ import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.media.MediaActionSound
 import android.os.Build
 import android.view.View
 import android.widget.FrameLayout
@@ -16,6 +17,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -141,8 +145,15 @@ fun ResultScreen(
         }
     }
 
+    var isCapturingImage by remember { mutableStateOf(false) }
+
     fun saveResultImage(sub: Subscription) {
+        if (isCapturingImage) return
         scope.launch {
+            isCapturingImage = true
+            val cameraSound = playCameraCaptureSound()
+            delay(120)
+
             val success = try {
                 val bitmap = captureResultContentBitmap(
                     context = context,
@@ -160,6 +171,10 @@ fun ResultScreen(
             } catch (e: Exception) {
                 e.printStackTrace()
                 false
+            } finally {
+                delay(180)
+                isCapturingImage = false
+                try { cameraSound?.release() } catch (_: Exception) {}
             }
             viewModel.showToast(
                 if (success) lang.tExportOk else lang.tExportFail
@@ -214,6 +229,8 @@ fun ResultScreen(
                 isCounting = isCounting,
                 iconAtRight = iconAtRight,
                 animate = true,
+                showCopyButtons = true,
+                centerPrimaryInfo = false,
                 onCopyValue = copyResultValue
             )
 
@@ -269,6 +286,20 @@ fun ResultScreen(
         }
         } // end outer scrollable Column
 
+        // ─── Screenshot-style flash while saving image ───
+        AnimatedVisibility(
+            visible = isCapturingImage,
+            enter = fadeIn(animationSpec = tween(55)),
+            exit = fadeOut(animationSpec = tween(220)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.38f))
+            )
+        }
+
         // ─── Toast at bottom ───
         AnimatedVisibility(
             visible = toastMessage != null,
@@ -284,6 +315,17 @@ fun ResultScreen(
         }
     }
 }
+
+private fun playCameraCaptureSound(): MediaActionSound? {
+    return try {
+        MediaActionSound().apply {
+            play(MediaActionSound.SHUTTER_CLICK)
+        }
+    } catch (_: Exception) {
+        null
+    }
+}
+
 
 private suspend fun captureResultContentBitmap(
     context: Context,
@@ -309,6 +351,8 @@ private suspend fun captureResultContentBitmap(
                     isCounting = isCounting,
                     iconAtRight = iconAtRight,
                     animate = false,
+                    showCopyButtons = false,
+                    centerPrimaryInfo = true,
                     onCopyValue = {}
                 )
             }
@@ -357,6 +401,8 @@ private fun ResultCaptureContent(
     isCounting: Boolean,
     iconAtRight: Boolean,
     animate: Boolean,
+    showCopyButtons: Boolean,
+    centerPrimaryInfo: Boolean,
     onCopyValue: (String) -> Unit
 ) {
     val primary: @Composable () -> Unit = {
@@ -366,22 +412,23 @@ private fun ResultCaptureContent(
                     icon = Icons.Default.SignalCellularAlt,
                     label = lang.lHost,
                     value = subscription.host,
-                    onCopy = { onCopyValue(subscription.host) }
+                    onCopy = if (showCopyButtons) ({ onCopyValue(subscription.host) }) else null
                 ),
                 CapsuleItem(
                     icon = Icons.Default.Groups,
                     label = lang.lUser,
                     value = subscription.username,
-                    onCopy = { onCopyValue(subscription.username) }
+                    onCopy = if (showCopyButtons) ({ onCopyValue(subscription.username) }) else null
                 ),
                 CapsuleItem(
                     icon = Icons.Default.Key,
                     label = lang.lPass,
                     value = subscription.password,
-                    onCopy = { onCopyValue(subscription.password) }
+                    onCopy = if (showCopyButtons) ({ onCopyValue(subscription.password) }) else null
                 )
             ),
-            iconAtRight = iconAtRight
+            iconAtRight = iconAtRight,
+            centerContent = centerPrimaryInfo
         )
     }
 
@@ -417,27 +464,28 @@ private fun ResultCaptureContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left/opposite side: Trial icon → title → result.
+                // Left/opposite side: result → title → trial icon, so visually
+                // from the right it reads icon → title → result.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Science,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(16.dp)
+                    Text(
+                        text = if (subscription.isTrial) lang.yes else lang.no,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp
                     )
                     Text(
                         text = lang.lTrial,
                         color = Color(0xFFA0A0A0),
                         fontSize = 13.sp
                     )
-                    Text(
-                        text = if (subscription.isTrial) lang.yes else lang.no,
-                        color = Color.White,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp
+                    Icon(
+                        imageVector = Icons.Default.Science,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
