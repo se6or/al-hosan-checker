@@ -1,11 +1,17 @@
 package com.alhosan.checker.ui.screens
 
 import android.Manifest
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Build
+import android.view.View
+import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,7 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
@@ -73,22 +79,25 @@ import com.alhosan.checker.ui.components.StaggeredColumn
 import com.alhosan.checker.ui.components.StatusBadge
 import com.alhosan.checker.ui.components.alHosanStaggeredEnter
 import com.alhosan.checker.ui.components.alHosanStaggeredExit
+import com.alhosan.checker.ui.theme.AlHosanTheme
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.util.ImageExporter
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Result screen - matching HTML reference's #scr-result
  * Features: capsule-style cards, copy buttons, status badge, M3U generation, save, export-as-image
  *
- * The export-as-image button renders the subscription data to a Bitmap via
- * [com.alhosan.checker.util.ResultImageRenderer] (using Android's native Canvas)
- * and saves the PNG to Pictures/AlHosan via MediaStore.
+ * The export-as-image button renders the exact result capture zone with Compose
+ * into a Bitmap (screenshot-style, excluding header/action buttons) and saves
+ * the PNG to Pictures/AlHosan via MediaStore.
  */
 @Composable
 fun ResultScreen(
@@ -134,13 +143,24 @@ fun ResultScreen(
 
     fun saveResultImage(sub: Subscription) {
         scope.launch {
-            val success = ImageExporter.saveSubscriptionToGallery(
-                context = context,
-                subscription = sub,
-                lang = lang,
-                // Saved PNG name: username.png, username (1).png, ...
-                fileName = sub.username
-            )
+            val success = try {
+                val bitmap = captureResultContentBitmap(
+                    context = context,
+                    subscription = sub,
+                    lang = lang,
+                    isCounting = false
+                )
+                try {
+                    withContext(Dispatchers.IO) {
+                        ImageExporter.saveBitmapToGallery(context, bitmap, sub.username)
+                    }
+                } finally {
+                    bitmap.recycle()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
             viewModel.showToast(
                 if (success) lang.tExportOk else lang.tExportFail
             )
@@ -188,148 +208,14 @@ fun ResultScreen(
                     .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)
             ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Black, RoundedCornerShape(28.dp))
-                    .padding(16.dp)
-            ) {
-                // ReactBits-like staggered reveal for every result frame.
-                StaggeredColumn(perItemDelayMs = 45) {
-                    // Frame 1: Main server information. Labels use the current
-                    // language only; copy buttons are left-only and show toast.
-                    Item {
-                        ResultPrimaryInfoStacked(
-                            items = listOf(
-                                CapsuleItem(
-                                    icon = Icons.Default.SignalCellularAlt,
-                                    label = lang.lHost,
-                                    value = subscription.host,
-                                    onCopy = { copyResultValue(subscription.host) }
-                                ),
-                                CapsuleItem(
-                                    icon = Icons.Default.Groups,
-                                    label = lang.lUser,
-                                    value = subscription.username,
-                                    onCopy = { copyResultValue(subscription.username) }
-                                ),
-                                CapsuleItem(
-                                    icon = Icons.Default.Key,
-                                    label = lang.lPass,
-                                    value = subscription.password,
-                                    onCopy = { copyResultValue(subscription.password) }
-                                )
-                            ),
-                            iconAtRight = iconAtRight
-                        )
-                    }
-
-                    // Frame 2: Created / Expiry dates. Titles right, results left.
-                    Item {
-                        ResultSideBySideStacked(
-                            items = listOf(
-                                CapsuleItem(
-                                    icon = Icons.Default.CalendarToday,
-                                    label = lang.lCreated,
-                                    value = subscription.created
-                                ),
-                                CapsuleItem(
-                                    icon = Icons.Default.CalendarMonth,
-                                    label = lang.lExpiry,
-                                    value = subscription.expiry
-                                )
-                            ),
-                            iconAtRight = iconAtRight
-                        )
-                    }
-
-                    // Frame 3: Status + Trial kept in its previous horizontal layout.
-                    Item {
-                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        Brush.linearGradient(listOf(Color(0xFF080808), Color(0xFF121212))),
-                                        RoundedCornerShape(20.dp)
-                                    )
-                                    .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
-                                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Status
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    ResultTitleWithIcon(
-                                        icon = Icons.Default.SignalCellularAlt,
-                                        text = lang.lStatus,
-                                        iconAtRight = iconAtRight
-                                    )
-                                    StatusBadge(
-                                        isActive = subscription.isActive,
-                                        text = if (subscription.isActive) lang.on else lang.off
-                                    )
-                                }
-
-                                // Trial
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    ResultTitleWithIcon(
-                                        icon = Icons.Default.Science,
-                                        text = lang.lTrial,
-                                        iconAtRight = iconAtRight
-                                    )
-                                    Text(
-                                        text = if (subscription.isTrial) lang.yes else lang.no,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 14.sp
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                    }
-
-                    // Frame 4: Active connections / Max connections. Titles right,
-                    // results left, with no copy icons.
-                    Item {
-                        ResultSideBySideStacked(
-                            items = listOf(
-                                CapsuleItem(
-                                    icon = Icons.Default.Devices,
-                                    label = lang.lDevices,
-                                    value = subscription.activeCons
-                                ),
-                                CapsuleItem(
-                                    icon = Icons.Default.Groups,
-                                    label = lang.lMaxCons,
-                                    value = subscription.maxCons
-                                )
-                            ),
-                            iconAtRight = iconAtRight
-                        )
-                    }
-
-                    // Frame 5: Content counts (Channels | Movies | Series)
-                    Item {
-                        ContentCountDisplay(
-                            liveCount = subscription.liveCount,
-                            movieCount = subscription.movieCount,
-                            seriesCount = subscription.seriesCount,
-                            channelsLabel = lang.lChannels,
-                            moviesLabel = lang.lMovies,
-                            seriesLabel = lang.lSeries,
-                            isLoading = isCounting
-                        )
-                    }
-                }
-            }
+            ResultCaptureContent(
+                subscription = subscription,
+                lang = lang,
+                isCounting = isCounting,
+                iconAtRight = iconAtRight,
+                animate = true,
+                onCopyValue = copyResultValue
+            )
 
             // ─── Action row: Save (hidden for restored items), M3U, Export Image ───
             Row(
@@ -364,8 +250,8 @@ fun ResultScreen(
                     )
                 }
 
-                // Export as image button — renders the subscription data to a PNG via
-                // ResultImageRenderer (Android Canvas) and saves it to the gallery.
+                // Export as image button — captures only the result area exactly
+                // as displayed, excluding header and lower action buttons.
                 Box(modifier = Modifier.weight(if (isFromHistory) 1.5f else 1f)) {
                     AlHosanMainButton(
                         text = lang.btnE,
@@ -399,47 +285,245 @@ fun ResultScreen(
     }
 }
 
-@Composable
-private fun ResultTitleWithIcon(
-    icon: ImageVector,
-    text: String,
-    iconAtRight: Boolean
-) {
-    // Force physical LTR placement so Arabic can put the icon at the visual
-    // beginning (right side) while English keeps it at the left side.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (iconAtRight) {
-                Text(
-                    text = text,
-                    color = Color(0xFFA0A0A0),
-                    fontSize = 13.sp
-                )
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(16.dp)
-                )
-            } else {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = Gold,
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = text,
-                    color = Color(0xFFA0A0A0),
-                    fontSize = 13.sp
+private suspend fun captureResultContentBitmap(
+    context: Context,
+    subscription: Subscription,
+    lang: AppLang,
+    isCounting: Boolean
+): Bitmap = withContext(Dispatchers.Main) {
+    val activity = context.findActivity()
+        ?: throw IllegalStateException("Activity context is required for capture")
+    val decor = activity.window.decorView as FrameLayout
+    val density = context.resources.displayMetrics.density
+    val screenWidth = decor.width.takeIf { it > 0 } ?: context.resources.displayMetrics.widthPixels
+    val captureWidth = (screenWidth - (32f * density).toInt()).coerceAtLeast(1)
+    val iconAtRight = lang == AppLang.AR
+
+    val composeView = ComposeView(activity).apply {
+        setBackgroundColor(android.graphics.Color.BLACK)
+        setContent {
+            AlHosanTheme {
+                ResultCaptureContent(
+                    subscription = subscription,
+                    lang = lang,
+                    isCounting = isCounting,
+                    iconAtRight = iconAtRight,
+                    animate = false,
+                    onCopyValue = {}
                 )
             }
         }
     }
+
+    val params = FrameLayout.LayoutParams(captureWidth, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
+        leftMargin = -captureWidth * 2
+        topMargin = 0
+    }
+
+    try {
+        decor.addView(composeView, params)
+        // Give Compose a short moment to complete first composition/layout.
+        delay(120)
+
+        composeView.measure(
+            View.MeasureSpec.makeMeasureSpec(captureWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val measuredHeight = composeView.measuredHeight.coerceAtLeast(1)
+        composeView.layout(0, 0, captureWidth, measuredHeight)
+
+        Bitmap.createBitmap(captureWidth, measuredHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
+            val canvas = Canvas(bitmap)
+            canvas.drawColor(android.graphics.Color.BLACK)
+            composeView.draw(canvas)
+        }
+    } finally {
+        try { decor.removeView(composeView) } catch (_: Exception) {}
+        composeView.disposeComposition()
+    }
 }
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+
+@Composable
+private fun ResultCaptureContent(
+    subscription: Subscription,
+    lang: AppLang,
+    isCounting: Boolean,
+    iconAtRight: Boolean,
+    animate: Boolean,
+    onCopyValue: (String) -> Unit
+) {
+    val primary: @Composable () -> Unit = {
+        ResultPrimaryInfoStacked(
+            items = listOf(
+                CapsuleItem(
+                    icon = Icons.Default.SignalCellularAlt,
+                    label = lang.lHost,
+                    value = subscription.host,
+                    onCopy = { onCopyValue(subscription.host) }
+                ),
+                CapsuleItem(
+                    icon = Icons.Default.Groups,
+                    label = lang.lUser,
+                    value = subscription.username,
+                    onCopy = { onCopyValue(subscription.username) }
+                ),
+                CapsuleItem(
+                    icon = Icons.Default.Key,
+                    label = lang.lPass,
+                    value = subscription.password,
+                    onCopy = { onCopyValue(subscription.password) }
+                )
+            ),
+            iconAtRight = iconAtRight
+        )
+    }
+
+    val dates: @Composable () -> Unit = {
+        ResultSideBySideStacked(
+            items = listOf(
+                CapsuleItem(
+                    icon = Icons.Default.CalendarToday,
+                    label = lang.lCreated,
+                    value = subscription.created
+                ),
+                CapsuleItem(
+                    icon = Icons.Default.CalendarMonth,
+                    label = lang.lExpiry,
+                    value = subscription.expiry
+                )
+            ),
+            iconAtRight = iconAtRight
+        )
+    }
+
+    val statusTrial: @Composable () -> Unit = {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(listOf(Color(0xFF080808), Color(0xFF121212))),
+                        RoundedCornerShape(20.dp)
+                    )
+                    .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left/opposite side: Trial icon → title → result.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Science,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = lang.lTrial,
+                        color = Color(0xFFA0A0A0),
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = if (subscription.isTrial) lang.yes else lang.no,
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                // Right side: status icon → title → result (visually from right).
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatusBadge(
+                        isActive = subscription.isActive,
+                        text = if (subscription.isActive) lang.on else lang.off
+                    )
+                    Text(
+                        text = lang.lStatus,
+                        color = Color(0xFFA0A0A0),
+                        fontSize = 13.sp
+                    )
+                    Icon(
+                        imageVector = Icons.Default.SignalCellularAlt,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    val devices: @Composable () -> Unit = {
+        ResultSideBySideStacked(
+            items = listOf(
+                CapsuleItem(
+                    icon = Icons.Default.Devices,
+                    label = lang.lDevices,
+                    value = subscription.activeCons
+                ),
+                CapsuleItem(
+                    icon = Icons.Default.Groups,
+                    label = lang.lMaxCons,
+                    value = subscription.maxCons
+                )
+            ),
+            iconAtRight = iconAtRight
+        )
+    }
+
+    val contentCounts: @Composable () -> Unit = {
+        ContentCountDisplay(
+            liveCount = subscription.liveCount,
+            movieCount = subscription.movieCount,
+            seriesCount = subscription.seriesCount,
+            channelsLabel = lang.lChannels,
+            moviesLabel = lang.lMovies,
+            seriesLabel = lang.lSeries,
+            isLoading = isCounting
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Black, RoundedCornerShape(28.dp))
+            .padding(16.dp)
+    ) {
+        if (animate) {
+            StaggeredColumn(perItemDelayMs = 45) {
+                Item { primary() }
+                Item { dates() }
+                Item { statusTrial() }
+                Item { devices() }
+                Item { contentCounts() }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                primary()
+                dates()
+                statusTrial()
+                devices()
+                contentCounts()
+            }
+        }
+    }
+}
+
+
 
 /**
  * Copy value to clipboard - matching HTML reference's copyVal() function
