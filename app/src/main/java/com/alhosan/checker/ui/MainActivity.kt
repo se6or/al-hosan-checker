@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,6 +49,8 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.SurfaceBlack
 import com.alhosan.checker.ui.theme.AlHosanTheme
 import com.alhosan.checker.viewmodel.CheckerViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -84,8 +87,17 @@ class MainActivity : ComponentActivity() {
 fun AlHosanApp() {
     val navController = rememberNavController()
     val viewModel: CheckerViewModel = viewModel()
+    val transitionScope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    fun popResultAfterTransition() {
+        navController.popBackStack()
+        transitionScope.launch {
+            delay(330)
+            viewModel.resetState()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Black)) {
         // Header is outside NavHost so the back button stays fixed and does not
@@ -96,10 +108,7 @@ fun AlHosanApp() {
                 showLang = currentRoute == "login",
                 onBack = {
                     when (currentRoute) {
-                        "result" -> {
-                            navController.popBackStack()
-                            viewModel.resetState()
-                        }
+                        "result" -> popResultAfterTransition()
                         "history" -> navController.popBackStack()
                     }
                 },
@@ -139,10 +148,7 @@ fun AlHosanApp() {
 
                 composable("result") {
                     ResultScreen(
-                        onBack = {
-                            navController.popBackStack()
-                            viewModel.resetState()
-                        },
+                        onBack = { popResultAfterTransition() },
                         viewModel = viewModel
                     )
                 }

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,7 +53,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -242,50 +245,52 @@ fun ResultScreen(
 
                     // Frame 3: Status + Trial kept in its previous horizontal layout.
                     Item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    Brush.linearGradient(listOf(Color(0xFF080808), Color(0xFF121212))),
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Status
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        Brush.linearGradient(listOf(Color(0xFF080808), Color(0xFF121212))),
+                                        RoundedCornerShape(20.dp)
+                                    )
+                                    .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                ResultTitleWithIcon(
-                                    icon = Icons.Default.SignalCellularAlt,
-                                    text = lang.lStatus,
-                                    iconAtRight = iconAtRight
-                                )
-                                StatusBadge(
-                                    isActive = subscription.isActive,
-                                    text = if (subscription.isActive) lang.on else lang.off
-                                )
-                            }
+                                // Status
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    ResultTitleWithIcon(
+                                        icon = Icons.Default.SignalCellularAlt,
+                                        text = lang.lStatus,
+                                        iconAtRight = iconAtRight
+                                    )
+                                    StatusBadge(
+                                        isActive = subscription.isActive,
+                                        text = if (subscription.isActive) lang.on else lang.off
+                                    )
+                                }
 
-                            // Trial
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                ResultTitleWithIcon(
-                                    icon = Icons.Default.Science,
-                                    text = lang.lTrial,
-                                    iconAtRight = iconAtRight
-                                )
-                                Text(
-                                    text = if (subscription.isTrial) lang.yes else lang.no,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 14.sp
-                                )
+                                // Trial
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    ResultTitleWithIcon(
+                                        icon = Icons.Default.Science,
+                                        text = lang.lTrial,
+                                        iconAtRight = iconAtRight
+                                    )
+                                    Text(
+                                        text = if (subscription.isTrial) lang.yes else lang.no,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
@@ -400,30 +405,39 @@ private fun ResultTitleWithIcon(
     text: String,
     iconAtRight: Boolean
 ) {
-    if (iconAtRight) {
-        Text(
-            text = text,
-            color = Color(0xFFA0A0A0),
-            fontSize = 13.sp
-        )
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Gold,
-            modifier = Modifier.size(16.dp)
-        )
-    } else {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = Gold,
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = text,
-            color = Color(0xFFA0A0A0),
-            fontSize = 13.sp
-        )
+    // Force physical LTR placement so Arabic can put the icon at the visual
+    // beginning (right side) while English keeps it at the left side.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (iconAtRight) {
+                Text(
+                    text = text,
+                    color = Color(0xFFA0A0A0),
+                    fontSize = 13.sp
+                )
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(16.dp)
+                )
+            } else {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Gold,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = text,
+                    color = Color(0xFFA0A0A0),
+                    fontSize = 13.sp
+                )
+            }
+        }
     }
 }
 

@@ -17,7 +17,7 @@ import com.alhosan.checker.ui.i18n.*
  * native Canvas so the saved PNG is crisp, deterministic, and independent from
  * screenshots. The layout mirrors the requested ResultScreen arrangement:
  * - Main server information: current-language labels on the right, values below
- *   on the right, and copy buttons are NOT drawn in the exported image.
+ *   on the right, with the same copy buttons on the left.
  * - Created/expiry and device counters: labels on the right, values opposite on
  *   the left.
  * - Status/trial: kept as a compact horizontal row.
@@ -26,14 +26,12 @@ object ResultImageRenderer {
 
     // High-resolution export for a sharper PNG in galleries/sharing.
     private const val WIDTH = 2160
-    private const val HEIGHT = 2500
-    private const val MARGIN = 100f
+    private const val HEIGHT = 2050
+    private const val MARGIN = 96f
     private const val INNER_PAD = 56f
     private const val CAPSULE_RADIUS = 42f
-    private const val CARD_RADIUS = 58f
 
     private val COLOR_BG = Color.BLACK
-    private val COLOR_CARD_BG = Color.parseColor("#050505")
     private val COLOR_CAPSULE_TOP = Color.parseColor("#080808")
     private val COLOR_CAPSULE_BOTTOM = Color.parseColor("#121212")
     private val COLOR_BORDER = Color.parseColor("#1F1A0F")
@@ -57,33 +55,13 @@ object ResultImageRenderer {
         val canvas = Canvas(bitmap)
         canvas.drawColor(COLOR_BG)
 
-        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_ACCENT
-            textSize = 78f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textAlign = Paint.Align.CENTER
-            isSubpixelText = true
-        }
-
         val iconAtRight = lang == AppLang.AR
 
-        var y = 145f
-        canvas.drawText(lang.splash, WIDTH / 2f, y, titlePaint)
-        y += 92f
-
-        val cardRect = RectF(MARGIN, y, WIDTH - MARGIN, HEIGHT - MARGIN)
-        val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_CARD_BG }
-        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_BORDER
-            style = Paint.Style.STROKE
-            strokeWidth = 3.5f
-        }
-        canvas.drawRoundRect(cardRect, CARD_RADIUS, CARD_RADIUS, cardPaint)
-        canvas.drawRoundRect(cardRect, CARD_RADIUS, CARD_RADIUS, borderPaint)
-
-        y += 70f
-        val left = cardRect.left + 42f
-        val right = cardRect.right - 42f
+        // Match the visible result card itself: no exported title, no outer
+        // wrapper, just the same black capture zone and the same capsules.
+        var y = MARGIN
+        val left = MARGIN
+        val right = WIDTH - MARGIN
         val width = right - left
         val gap = 28f
 
@@ -150,6 +128,8 @@ object ResultImageRenderer {
         var y = top + INNER_PAD + 36f
 
         fields.forEachIndexed { index, field ->
+            // Main-info capsule in the app includes the copy icon on the left.
+            drawCopyButton(canvas, left + INNER_PAD, y - 42f)
             drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 9f, labelPaint, iconAtRight)
             val displayValue = ellipsize(field.value, valuePaint, valueMaxWidth)
             canvas.drawText(displayValue, rightX, y + 62f, valuePaint)
@@ -412,6 +392,26 @@ object ResultImageRenderer {
                 canvas.drawCircle(cx, cy + 11f, 4f, fill)
             }
         }
+    }
+
+    private fun drawCopyButton(canvas: Canvas, left: Float, top: Float) {
+        val size = 64f
+        val rect = RectF(left, top, left + size, top + size)
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_BORDER
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+        val icon = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_ACCENT
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        canvas.drawRoundRect(rect, 18f, 18f, stroke)
+        canvas.drawRoundRect(RectF(left + 22f, top + 16f, left + 45f, top + 42f), 4f, 4f, icon)
+        canvas.drawRoundRect(RectF(left + 17f, top + 22f, left + 39f, top + 48f), 4f, 4f, icon)
     }
 
     private fun drawBadge(
