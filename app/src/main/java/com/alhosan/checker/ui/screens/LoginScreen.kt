@@ -49,8 +49,6 @@ import com.alhosan.checker.R
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckMode
 import com.alhosan.checker.data.model.CheckerState
-import com.alhosan.checker.ui.HeaderSpacer
-import com.alhosan.checker.ui.ScreenHeader
 import com.alhosan.checker.ui.components.AlHosanInputRow
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
@@ -143,15 +141,6 @@ fun LoginScreen(
             .background(Black)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // ── Header Row (above the card) ──
-            ScreenHeader(
-                showBack = false,
-                onBack = {},
-                onLangToggle = viewModel::toggleLang
-            )
-
-            HeaderSpacer()
-
             // ── Card with tabs + inputs + start-check button ──
             Card(
                 modifier = Modifier

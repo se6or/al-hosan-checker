@@ -90,21 +90,11 @@ fun HistoryScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // ── Header Row (above the card, real layout slot — not overlay) ──
-            com.alhosan.checker.ui.ScreenHeader(
-                showBack = true,
-                onBack = onBack,
-                onLangToggle = viewModel::toggleLang
-            )
-
-            // ── Breathing space between header and card ──
-            com.alhosan.checker.ui.HeaderSpacer()
-
             // ── Card container ──
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(start = 14.dp, end = 14.dp, top = 4.dp, bottom = 14.dp),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderGold),
                 shape = RoundedCornerShape(28.dp)

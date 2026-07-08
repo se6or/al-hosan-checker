@@ -50,12 +50,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.data.model.Subscription
 import com.alhosan.checker.ui.components.AlHosanMainButton
@@ -119,6 +121,8 @@ fun ResultScreen(
         }
     }
 
+    val iconAtRight = lang == AppLang.AR
+
     val copyResultValue: (String) -> Unit = { value ->
         if (copyToClipboard(context, value)) {
             viewModel.showToast(lang.tCopied)
@@ -174,21 +178,11 @@ fun ResultScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // ── Header Row (above the card, real layout slot — not overlay) ──
-            com.alhosan.checker.ui.ScreenHeader(
-                showBack = true,
-                onBack = onBack,
-                onLangToggle = viewModel::toggleLang
-            )
-
-            // ── Breathing space between header and card ──
-            com.alhosan.checker.ui.HeaderSpacer()
-
             // ── Card content ──
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)
             ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
             Column(
@@ -199,30 +193,31 @@ fun ResultScreen(
             ) {
                 // ReactBits-like staggered reveal for every result frame.
                 StaggeredColumn(perItemDelayMs = 45) {
-                    // Frame 1: Main server information. Labels are fixed bilingual
-                    // text, aligned right; copy buttons are left-only and show toast.
+                    // Frame 1: Main server information. Labels use the current
+                    // language only; copy buttons are left-only and show toast.
                     Item {
                         ResultPrimaryInfoStacked(
                             items = listOf(
                                 CapsuleItem(
                                     icon = Icons.Default.SignalCellularAlt,
-                                    label = "السيرفر / Server",
+                                    label = lang.lHost,
                                     value = subscription.host,
                                     onCopy = { copyResultValue(subscription.host) }
                                 ),
                                 CapsuleItem(
                                     icon = Icons.Default.Groups,
-                                    label = "اسم المستخدم / Username",
+                                    label = lang.lUser,
                                     value = subscription.username,
                                     onCopy = { copyResultValue(subscription.username) }
                                 ),
                                 CapsuleItem(
                                     icon = Icons.Default.Key,
-                                    label = "كلمة المرور / Password",
+                                    label = lang.lPass,
                                     value = subscription.password,
                                     onCopy = { copyResultValue(subscription.password) }
                                 )
-                            )
+                            ),
+                            iconAtRight = iconAtRight
                         )
                     }
 
@@ -240,7 +235,8 @@ fun ResultScreen(
                                     label = lang.lExpiry,
                                     value = subscription.expiry
                                 )
-                            )
+                            ),
+                            iconAtRight = iconAtRight
                         )
                     }
 
@@ -263,16 +259,10 @@ fun ResultScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SignalCellularAlt,
-                                    contentDescription = null,
-                                    tint = Gold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
+                                ResultTitleWithIcon(
+                                    icon = Icons.Default.SignalCellularAlt,
                                     text = lang.lStatus,
-                                    color = Color(0xFFA0A0A0),
-                                    fontSize = 13.sp
+                                    iconAtRight = iconAtRight
                                 )
                                 StatusBadge(
                                     isActive = subscription.isActive,
@@ -285,16 +275,10 @@ fun ResultScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Science,
-                                    contentDescription = null,
-                                    tint = Gold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
+                                ResultTitleWithIcon(
+                                    icon = Icons.Default.Science,
                                     text = lang.lTrial,
-                                    color = Color(0xFFA0A0A0),
-                                    fontSize = 13.sp
+                                    iconAtRight = iconAtRight
                                 )
                                 Text(
                                     text = if (subscription.isTrial) lang.yes else lang.no,
@@ -322,7 +306,8 @@ fun ResultScreen(
                                     label = lang.lMaxCons,
                                     value = subscription.maxCons
                                 )
-                            )
+                            ),
+                            iconAtRight = iconAtRight
                         )
                     }
 
@@ -406,6 +391,39 @@ fun ResultScreen(
                 AlHosanToast(message = toastMessage!!)
             }
         }
+    }
+}
+
+@Composable
+private fun ResultTitleWithIcon(
+    icon: ImageVector,
+    text: String,
+    iconAtRight: Boolean
+) {
+    if (iconAtRight) {
+        Text(
+            text = text,
+            color = Color(0xFFA0A0A0),
+            fontSize = 13.sp
+        )
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Gold,
+            modifier = Modifier.size(16.dp)
+        )
+    } else {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Gold,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = text,
+            color = Color(0xFFA0A0A0),
+            fontSize = 13.sp
+        )
     }
 }
 
