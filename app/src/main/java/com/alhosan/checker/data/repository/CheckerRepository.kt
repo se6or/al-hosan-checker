@@ -11,6 +11,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.ConnectionSpec
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URI
@@ -63,6 +64,13 @@ class CheckerRepository {
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
+        .connectionSpecs(
+            listOf(
+                ConnectionSpec.MODERN_TLS,
+                ConnectionSpec.COMPATIBLE_TLS,
+                ConnectionSpec.CLEARTEXT
+            )
+        )
         .build()
 
     /**
@@ -268,7 +276,15 @@ class CheckerRepository {
     }
 
     private fun isSslFailure(e: Throwable): Boolean {
-        return e is SSLException || e.cause?.let { isSslFailure(it) } == true
+        val msg = e.message.orEmpty()
+        return e is SSLException ||
+            msg.contains("ssl", ignoreCase = true) ||
+            msg.contains("handshake", ignoreCase = true) ||
+            msg.contains("certificate", ignoreCase = true) ||
+            msg.contains("cert", ignoreCase = true) ||
+            msg.contains("Trust anchor", ignoreCase = true) ||
+            msg.contains("Hostname", ignoreCase = true) ||
+            e.cause?.let { isSslFailure(it) } == true
     }
 
     private fun buildInsecureCompatibilityClient(): OkHttpClient {
