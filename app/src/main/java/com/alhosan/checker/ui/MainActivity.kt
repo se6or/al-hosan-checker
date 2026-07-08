@@ -4,6 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,7 +24,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -199,32 +204,41 @@ fun ScreenHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Leading slot: back button or spacer (to keep lang button on the end edge)
-        if (showBack) {
-            CircleHeaderButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = Gold,
-                    modifier = Modifier.size(18.dp)
-                )
+        // Leading slot: back button fades/slides independently from screen transition.
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            AnimatedVisibility(
+                visible = showBack,
+                enter = slideInHorizontally(animationSpec = tween(220)) { -it / 2 } + fadeIn(tween(180)),
+                exit = slideOutHorizontally(animationSpec = tween(180)) { -it / 2 } + fadeOut(tween(140))
+            ) {
+                CircleHeaderButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
-        } else {
-            Spacer(modifier = Modifier.width(40.dp))
         }
 
-        // Trailing slot: language toggle only on the main login screen.
-        if (showLang) {
-            CircleHeaderButton(onClick = onLangToggle) {
-                Icon(
-                    imageVector = Icons.Default.Language,
-                    contentDescription = "Language",
-                    tint = Gold,
-                    modifier = Modifier.size(18.dp)
-                )
+        // Trailing slot: language toggle only on the main login screen, with
+        // its own smooth appearance/disappearance.
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+            AnimatedVisibility(
+                visible = showLang,
+                enter = slideInHorizontally(animationSpec = tween(220)) { it / 2 } + fadeIn(tween(180)),
+                exit = slideOutHorizontally(animationSpec = tween(180)) { it / 2 } + fadeOut(tween(140))
+            ) {
+                CircleHeaderButton(onClick = onLangToggle) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = "Language",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
-        } else {
-            Spacer(modifier = Modifier.width(40.dp))
         }
     }
 }
