@@ -4,11 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,8 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +38,8 @@ import com.alhosan.checker.ui.screens.HistoryScreen
 import com.alhosan.checker.ui.screens.LoginScreen
 import com.alhosan.checker.ui.screens.ResultScreen
 import com.alhosan.checker.ui.screens.SplashScreen
+import com.alhosan.checker.ui.components.alHosanStaggeredEnter
+import com.alhosan.checker.ui.components.alHosanStaggeredExit
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
@@ -67,7 +62,7 @@ class MainActivity : ComponentActivity() {
 
 /**
  * Main app composable. Splash → Login → Result / History.
- * Fade-only transitions to avoid overlap glitches during system back gesture.
+ * Shared staggered fade/slide transitions for open/close/back navigation.
  *
  * LAYOUT FIX (this iteration):
  *   The previous "floating overlay" buttons kept ending up *behind* the Card
@@ -87,42 +82,18 @@ class MainActivity : ComponentActivity() {
 fun AlHosanApp() {
     val navController = rememberNavController()
     val viewModel: CheckerViewModel = viewModel()
-    val lang by viewModel.lang.collectAsState()
-    val isChecking by viewModel.isChecking.collectAsState()
 
     Box(modifier = Modifier.fillMaxSize().background(Black)) {
         NavHost(
             navController = navController,
             startDestination = "splash",
-            // Staggered-style screen transitions (inspired by reactbits.dev
-            // staggered-menu). Forward navigation: new screen slides in from
-            // top + slight horizontal offset, with a quick fade.
-            // Backward navigation: current screen slides out to top + fade.
-            // Both use the same direction so the effect is consistent.
-            enterTransition = {
-                slideInVertically(
-                    initialOffsetY = { -it / 6 },
-                    animationSpec = tween(380)
-                ) + fadeIn(tween(280))
-            },
-            exitTransition = {
-                slideOutVertically(
-                    targetOffsetY = { it / 12 },
-                    animationSpec = tween(280)
-                ) + fadeOut(tween(220))
-            },
-            popEnterTransition = {
-                slideInVertically(
-                    initialOffsetY = { it / 12 },
-                    animationSpec = tween(380)
-                ) + fadeIn(tween(280))
-            },
-            popExitTransition = {
-                slideOutVertically(
-                    targetOffsetY = { -it / 6 },
-                    animationSpec = tween(280)
-                ) + fadeOut(tween(220))
-            }
+            // Staggered-style screen transitions inspired by reactbits.dev's
+            // staggered-menu. Every screen open/close/pop uses the same shared
+            // fade + slide timing as toasts, overlays and dialogs.
+            enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+            exitTransition = { alHosanStaggeredExit(durationMs = 300) },
+            popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+            popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
         ) {
             composable("splash") {
                 SplashScreen(
