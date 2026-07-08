@@ -1,9 +1,14 @@
 package com.alhosan.checker.ui.screens
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +42,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -46,8 +54,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alhosan.checker.data.model.CheckerState
+import com.alhosan.checker.data.model.Subscription
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
 import com.alhosan.checker.ui.components.CapsuleItem
@@ -112,6 +122,49 @@ fun ResultScreen(
     val copyResultValue: (String) -> Unit = { value ->
         if (copyToClipboard(context, value)) {
             viewModel.showToast(lang.tCopied)
+        }
+    }
+
+    fun saveResultImage(sub: Subscription) {
+        scope.launch {
+            val success = ImageExporter.saveSubscriptionToGallery(
+                context = context,
+                subscription = sub,
+                lang = lang,
+                // Saved PNG name: username.png, username (1).png, ...
+                fileName = sub.username
+            )
+            viewModel.showToast(
+                if (success) lang.tExportOk else lang.tExportFail
+            )
+        }
+    }
+
+    var pendingImageExport by remember { mutableStateOf<Subscription?>(null) }
+    val exportPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val pendingSub = pendingImageExport
+        pendingImageExport = null
+        if (granted && pendingSub != null) {
+            saveResultImage(pendingSub)
+        } else {
+            viewModel.showToast(lang.tExportFail)
+        }
+    }
+
+    val exportResultImage: (Subscription) -> Unit = { sub ->
+        if (
+            Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingImageExport = sub
+            exportPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            saveResultImage(sub)
         }
     }
 
@@ -329,17 +382,7 @@ fun ResultScreen(
                         icon = Icons.Default.PhotoCamera,
                         onClick = {
                             val sub = subscription ?: return@AlHosanMainButton
-                            scope.launch {
-                                val success = ImageExporter.saveSubscriptionToGallery(
-                                    context = context,
-                                    subscription = sub,
-                                    lang = lang,
-                                    fileName = "HORSE_PRO_${System.currentTimeMillis()}"
-                                )
-                                viewModel.showToast(
-                                    if (success) lang.tExportOk else lang.tExportFail
-                                )
-                            }
+                            exportResultImage(sub)
                         },
                         isSubButton = true
                     )
