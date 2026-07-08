@@ -43,7 +43,7 @@ data class CheckerInput(
 ) {
     val isValid: Boolean
         get() = if (isM3uMode) {
-            m3uLink.isNotBlank() && m3uLink.length > 10 && m3uLink.startsWith("http")
+            m3uLink.isNotBlank() && m3uLink.length > 10 && m3uLink.startsWith("http", ignoreCase = true)
         } else {
             host.isNotBlank() && username.isNotBlank() && password.isNotBlank()
         }
