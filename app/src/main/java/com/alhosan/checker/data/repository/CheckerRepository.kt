@@ -17,6 +17,7 @@ import okhttp3.Request
 import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.io.Reader
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.Locale
@@ -399,18 +400,116 @@ class CheckerRepository {
                 .url(url)
                 .addIptvHeaders(accept = "application/json, text/plain, */*")
                 .build()
-            val response = executeTextWithSslCompatibility(request)
-            if (!response.isSuccessful) return "0"
-            val body = response.body ?: return "0"
-            val element = json.parseToJsonElement(body)
-            val count = runCatching { element.jsonArray.size }.getOrNull()
-                ?: runCatching { element.jsonObject["data"]?.jsonArray?.size }.getOrNull()
-                ?: runCatching { element.jsonObject["streams"]?.jsonArray?.size }.getOrNull()
-                ?: 0
-            count.toString()
+            executeJsonArrayCountWithCompatibility(request).toString()
         } catch (e: Exception) {
             "0"
         }
+    }
+
+    /**
+     * Count large Xtream arrays without materializing the whole JSON in memory.
+     * Some panels return tens of MB for get_live_streams/get_vod_streams; parsing
+     * them into JsonElement can trigger an Android OOM and close the app right
+     * after the result screen appears. This streams the response and counts the
+     * first JSON array's top-level elements instead.
+     */
+    private fun executeJsonArrayCountWithCompatibility(request: Request): Int {
+        return try {
+            countJsonArrayWithClient(client, request)
+        } catch (first: Exception) {
+            if (!isRetryablePanelTransportFailure(first)) throw first
+            try {
+                countJsonArrayWithClient(insecureClient, request)
+            } catch (second: Exception) {
+                if (!isRetryablePanelTransportFailure(second)) throw second
+                if (request.url.scheme == "https") {
+                    val httpRequest = request.newBuilder()
+                        .url(request.url.newBuilder().scheme("http").build())
+                        .build()
+                    countJsonArrayWithClient(client, httpRequest)
+                } else {
+                    throw second
+                }
+            }
+        }
+    }
+
+    private fun countJsonArrayWithClient(okHttpClient: OkHttpClient, request: Request): Int {
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return 0
+            val body = response.body ?: return 0
+            body.charStream().use { reader ->
+                return countFirstJsonArrayElements(reader)
+            }
+        }
+    }
+
+    private fun countFirstJsonArrayElements(reader: Reader): Int {
+        var started = false
+        var arrayDepth = 0
+        var objectDepth = 0
+        var inString = false
+        var escape = false
+        var tokenStarted = false
+        var count = 0
+
+        while (true) {
+            val code = reader.read()
+            if (code == -1) break
+            val ch = code.toChar()
+
+            if (!started) {
+                if (ch == '[') {
+                    started = true
+                    arrayDepth = 1
+                }
+                continue
+            }
+
+            if (inString) {
+                if (escape) {
+                    escape = false
+                } else if (ch == '\\') {
+                    escape = true
+                } else if (ch == '"') {
+                    inString = false
+                }
+                continue
+            }
+
+            when (ch) {
+                '"' -> {
+                    inString = true
+                    if (arrayDepth == 1) tokenStarted = true
+                }
+                '[' -> {
+                    arrayDepth++
+                    if (arrayDepth == 1) tokenStarted = true
+                }
+                ']' -> {
+                    if (arrayDepth == 1) {
+                        if (tokenStarted) count++
+                        return count
+                    }
+                    arrayDepth--
+                }
+                '{' -> {
+                    objectDepth++
+                    if (arrayDepth == 1) tokenStarted = true
+                }
+                '}' -> if (objectDepth > 0) objectDepth--
+                ',' -> {
+                    if (arrayDepth == 1 && objectDepth == 0) {
+                        if (tokenStarted) count++
+                        tokenStarted = false
+                    }
+                }
+                ' ', '\n', '\r', '\t' -> Unit
+                else -> if (arrayDepth == 1) tokenStarted = true
+            }
+        }
+
+        return count
     }
 
     /**
