@@ -4,11 +4,22 @@ import android.app.Activity
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -63,6 +75,7 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.GoldGradientBrush
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
+import kotlin.math.abs
 
 /**
  * Login/Check screen.
@@ -156,38 +169,22 @@ fun LoginScreen(
                         Item { TabsRow(checkMode, viewModel::setCheckMode, lang) }
                         Item {
                             Spacer(modifier = Modifier.height(22.dp))
-                            if (checkMode == CheckMode.XTREAM) {
-                                AlHosanInputRow(
-                                    value = host,
-                                    onValueChange = viewModel::updateHost,
-                                    placeholder = lang.hPl,
-                                    onPaste = { pasteFromClipboard(context, viewModel::updateHost) }
-                                )
-                                Spacer(modifier = Modifier.height(14.dp))
-                                AlHosanInputRow(
-                                    value = username,
-                                    onValueChange = viewModel::updateUsername,
-                                    placeholder = lang.uPl,
-                                    onPaste = { pasteFromClipboard(context, viewModel::updateUsername) }
-                                )
-                                Spacer(modifier = Modifier.height(14.dp))
-                                AlHosanInputRow(
-                                    value = password,
-                                    onValueChange = viewModel::updatePassword,
-                                    placeholder = lang.pPl,
-                                    isPassword = true,
-                                    obscurePassword = obscurePassword,
-                                    onTogglePassword = viewModel::togglePasswordVisibility,
-                                    onPaste = { pasteFromClipboard(context, viewModel::updatePassword) }
-                                )
-                            } else {
-                                AlHosanInputRow(
-                                    value = m3uLink,
-                                    onValueChange = viewModel::updateM3uLink,
-                                    placeholder = lang.mPl,
-                                    onPaste = { pasteFromClipboard(context, viewModel::updateM3uLink) }
-                                )
-                            }
+                            SwipeableModeInputs(
+                                checkMode = checkMode,
+                                onModeChange = viewModel::setCheckMode,
+                                host = host,
+                                username = username,
+                                password = password,
+                                m3uLink = m3uLink,
+                                obscurePassword = obscurePassword,
+                                lang = lang,
+                                context = context,
+                                onHostChange = viewModel::updateHost,
+                                onUsernameChange = viewModel::updateUsername,
+                                onPasswordChange = viewModel::updatePassword,
+                                onM3uLinkChange = viewModel::updateM3uLink,
+                                onTogglePassword = viewModel::togglePasswordVisibility
+                            )
                         }
                         // Start-check button — with extra breathing space above so it
                         // doesn't overlap the password field's border.
@@ -279,6 +276,96 @@ private fun CheckingOverlay(lang: AppLang) {
         }
     }
 }
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+private fun SwipeableModeInputs(
+    checkMode: CheckMode,
+    onModeChange: (CheckMode) -> Unit,
+    host: String,
+    username: String,
+    password: String,
+    m3uLink: String,
+    obscurePassword: Boolean,
+    lang: AppLang,
+    context: Context,
+    onHostChange: (String) -> Unit,
+    onUsernameChange: (String) -> Unit,
+    onPasswordChange: (String) -> Unit,
+    onM3uLinkChange: (String) -> Unit,
+    onTogglePassword: () -> Unit
+) {
+    var dragTotal by remember { mutableStateOf(0f) }
+
+    AnimatedContent(
+        targetState = checkMode,
+        transitionSpec = {
+            val toM3u = targetState == CheckMode.M3U
+            val enter = slideInHorizontally(
+                animationSpec = tween(320),
+                initialOffsetX = { fullWidth -> if (toM3u) fullWidth else -fullWidth }
+            ) + fadeIn(tween(220))
+            val exit = slideOutHorizontally(
+                animationSpec = tween(260),
+                targetOffsetX = { fullWidth -> if (toM3u) -fullWidth else fullWidth }
+            ) + fadeOut(tween(180))
+            enter togetherWith exit using SizeTransform(clip = false)
+        },
+        label = "mode-inputs",
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(checkMode) {
+                detectHorizontalDragGestures(
+                    onDragStart = { dragTotal = 0f },
+                    onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount },
+                    onDragEnd = {
+                        if (abs(dragTotal) > 80f) {
+                            if (dragTotal < 0f) onModeChange(CheckMode.M3U)
+                            else onModeChange(CheckMode.XTREAM)
+                        }
+                        dragTotal = 0f
+                    },
+                    onDragCancel = { dragTotal = 0f }
+                )
+            }
+    ) { mode ->
+        Column(modifier = Modifier.fillMaxWidth()) {
+            if (mode == CheckMode.XTREAM) {
+                AlHosanInputRow(
+                    value = host,
+                    onValueChange = onHostChange,
+                    placeholder = lang.hPl,
+                    onPaste = { pasteFromClipboard(context, onHostChange) }
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                AlHosanInputRow(
+                    value = username,
+                    onValueChange = onUsernameChange,
+                    placeholder = lang.uPl,
+                    onPaste = { pasteFromClipboard(context, onUsernameChange) }
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                AlHosanInputRow(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    placeholder = lang.pPl,
+                    isPassword = true,
+                    obscurePassword = obscurePassword,
+                    onTogglePassword = onTogglePassword,
+                    onPaste = { pasteFromClipboard(context, onPasswordChange) }
+                )
+            } else {
+                AlHosanInputRow(
+                    value = m3uLink,
+                    onValueChange = onM3uLinkChange,
+                    placeholder = lang.mPl,
+                    onPaste = { pasteFromClipboard(context, onM3uLinkChange) }
+                )
+            }
+        }
+    }
+}
+
 
 @Composable
 private fun TabsRow(
