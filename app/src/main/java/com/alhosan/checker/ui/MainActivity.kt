@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -206,7 +205,7 @@ fun ScreenHeader(
     ) {
         // Leading slot: back button fades/slides independently from screen transition.
         Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = showBack,
                 enter = slideInHorizontally(animationSpec = tween(220)) { -it / 2 } + fadeIn(tween(180)),
                 exit = slideOutHorizontally(animationSpec = tween(180)) { -it / 2 } + fadeOut(tween(140))
@@ -225,7 +224,7 @@ fun ScreenHeader(
         // Trailing slot: language toggle only on the main login screen, with
         // its own smooth appearance/disappearance.
         Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            AnimatedVisibility(
+            androidx.compose.animation.AnimatedVisibility(
                 visible = showLang,
                 enter = slideInHorizontally(animationSpec = tween(220)) { it / 2 } + fadeIn(tween(180)),
                 exit = slideOutHorizontally(animationSpec = tween(180)) { it / 2 } + fadeOut(tween(140))
