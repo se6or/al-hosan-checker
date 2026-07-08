@@ -16,8 +16,14 @@ import okhttp3.Request
 import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
+import javax.net.ssl.SSLException
+import javax.net.ssl.TrustManager
+import javax.net.ssl.X509TrustManager
 
 /**
  * Repository layer that performs actual Xtream API calls using OkHttp.
@@ -58,6 +64,14 @@ class CheckerRepository {
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
         .build()
+
+    /**
+     * IPTV/Xtream panels very often have expired, self-signed or mismatched SSL
+     * certificates while still serving perfectly valid accounts/streams. We keep
+     * the normal safe client first, then use this compatibility client only after
+     * an SSL failure. This matches IPTV players that tolerate bad panel SSL.
+     */
+    private val insecureClient: OkHttpClient by lazy { buildInsecureCompatibilityClient() }
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -135,31 +149,19 @@ class CheckerRepository {
                     .header("Connection", "keep-alive")
                     .build()
 
-                val response = client.newCall(request).execute()
+                val response = executeTextWithSslCompatibility(request)
 
                 when (response.code) {
-                    401, 403 -> {
-                        response.close()
-                        return@withContext Result.failure(Exception("auth_failed"))
-                    }
-                    in 400..499 -> {
-                        val code = "http_${response.code}"
-                        response.close()
-                        return@withContext Result.failure(Exception(code))
-                    }
-                    in 500..599 -> {
-                        val code = "http_${response.code}"
-                        response.close()
-                        return@withContext Result.failure(Exception(code))
-                    }
+                    401, 403 -> return@withContext Result.failure(Exception("auth_failed"))
+                    in 400..499 -> return@withContext Result.failure(Exception("http_${response.code}"))
+                    in 500..599 -> return@withContext Result.failure(Exception("http_${response.code}"))
                 }
 
                 if (!response.isSuccessful) {
-                    response.close()
                     return@withContext Result.failure(Exception("http_${response.code}"))
                 }
 
-                val body = response.body?.string()
+                val body = response.body
                 if (body.isNullOrBlank()) {
                     return@withContext Result.failure(Exception("empty_response"))
                 }
@@ -231,6 +233,60 @@ class CheckerRepository {
             }
         }
 
+    private data class HttpTextResponse(
+        val code: Int,
+        val isSuccessful: Boolean,
+        val body: String?
+    )
+
+    /**
+     * Execute normally first. If Android rejects the panel's SSL certificate,
+     * retry once with the IPTV compatibility client that accepts bad/self-signed
+     * certificates. This is only a fallback after a real SSL failure.
+     */
+    private fun executeTextWithSslCompatibility(request: Request): HttpTextResponse {
+        return try {
+            executeText(client, request)
+        } catch (e: Exception) {
+            if (isSslFailure(e)) {
+                Log.w("CheckerRepo", "SSL failed, retrying with IPTV compatibility SSL: ${request.url}")
+                executeText(insecureClient, request)
+            } else {
+                throw e
+            }
+        }
+    }
+
+    private fun executeText(okHttpClient: OkHttpClient, request: Request): HttpTextResponse {
+        okHttpClient.newCall(request).execute().use { response ->
+            return HttpTextResponse(
+                code = response.code,
+                isSuccessful = response.isSuccessful,
+                body = response.body?.string()
+            )
+        }
+    }
+
+    private fun isSslFailure(e: Throwable): Boolean {
+        return e is SSLException || e.cause?.let { isSslFailure(it) } == true
+    }
+
+    private fun buildInsecureCompatibilityClient(): OkHttpClient {
+        val trustAll = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
+        }
+
+        return client.newBuilder()
+            .sslSocketFactory(sslContext.socketFactory, trustAll)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+    }
+
     /**
      * Map a Java/OkHttp exception to a specific diagnostic error code.
      * This is the heart of the new error-diagnosis system.
@@ -289,16 +345,15 @@ class CheckerRepository {
                 .header("User-Agent", "AlHosanChecker/1.0")
                 .header("Accept", "application/json")
                 .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return "0"
-                val body = response.body?.string() ?: return "0"
-                val element = json.parseToJsonElement(body)
-                val count = runCatching { element.jsonArray.size }.getOrNull()
-                    ?: runCatching { element.jsonObject["data"]?.jsonArray?.size }.getOrNull()
-                    ?: runCatching { element.jsonObject["streams"]?.jsonArray?.size }.getOrNull()
-                    ?: 0
-                count.toString()
-            }
+            val response = executeTextWithSslCompatibility(request)
+            if (!response.isSuccessful) return "0"
+            val body = response.body ?: return "0"
+            val element = json.parseToJsonElement(body)
+            val count = runCatching { element.jsonArray.size }.getOrNull()
+                ?: runCatching { element.jsonObject["data"]?.jsonArray?.size }.getOrNull()
+                ?: runCatching { element.jsonObject["streams"]?.jsonArray?.size }.getOrNull()
+                ?: 0
+            count.toString()
         } catch (e: Exception) {
             "0"
         }
@@ -458,32 +513,31 @@ class CheckerRepository {
                 .header("Accept", "application/x-mpegURL, audio/x-mpegurl, text/plain, */*")
                 .build()
 
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val body = response.body?.string() ?: return null
-                if (!body.contains("#EXTM3U", ignoreCase = true) &&
-                    !body.contains("#EXTINF", ignoreCase = true)
-                ) {
-                    return null
-                }
-                val counts = countM3uContent(body)
-                if (counts.total == 0) return null
-
-                Subscription(
-                    host = host,
-                    username = username,
-                    password = password,
-                    status = "Active",
-                    activeCons = "--",
-                    maxCons = "--",
-                    isTrial = false,
-                    liveCount = counts.live.toString(),
-                    movieCount = counts.movie.toString(),
-                    seriesCount = counts.series.toString(),
-                    isM3uMode = true,
-                    m3uLink = m3uLink
-                )
+            val response = executeTextWithSslCompatibility(request)
+            if (!response.isSuccessful) return null
+            val body = response.body ?: return null
+            if (!body.contains("#EXTM3U", ignoreCase = true) &&
+                !body.contains("#EXTINF", ignoreCase = true)
+            ) {
+                return null
             }
+            val counts = countM3uContent(body)
+            if (counts.total == 0) return null
+
+            Subscription(
+                host = host,
+                username = username,
+                password = password,
+                status = "Active",
+                activeCons = "--",
+                maxCons = "--",
+                isTrial = false,
+                liveCount = counts.live.toString(),
+                movieCount = counts.movie.toString(),
+                seriesCount = counts.series.toString(),
+                isM3uMode = true,
+                m3uLink = m3uLink
+            )
         } catch (_: Exception) {
             null
         }
