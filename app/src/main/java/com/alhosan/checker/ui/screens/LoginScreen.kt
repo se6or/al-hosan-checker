@@ -150,6 +150,23 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Black)
+            .pointerInput(checkMode, isChecking) {
+                if (!isChecking) {
+                    var dragTotal = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragTotal = 0f },
+                        onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount },
+                        onDragEnd = {
+                            if (abs(dragTotal) > 80f) {
+                                if (dragTotal < 0f) viewModel.setCheckMode(CheckMode.M3U)
+                                else viewModel.setCheckMode(CheckMode.XTREAM)
+                            }
+                            dragTotal = 0f
+                        },
+                        onDragCancel = { dragTotal = 0f }
+                    )
+                }
+            }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ── Card with tabs + inputs + start-check button ──
@@ -301,11 +318,13 @@ private fun SwipeableModeInputs(
             val toM3u = targetState == CheckMode.M3U
             val enter = slideInHorizontally(
                 animationSpec = tween(320),
-                initialOffsetX = { fullWidth -> if (toM3u) fullWidth else -fullWidth }
+                // Reversed direction: M3U enters from left, Xtream enters from right.
+                initialOffsetX = { fullWidth -> if (toM3u) -fullWidth else fullWidth }
             ) + fadeIn(tween(220))
             val exit = slideOutHorizontally(
                 animationSpec = tween(260),
-                targetOffsetX = { fullWidth -> if (toM3u) -fullWidth else fullWidth }
+                // Reversed direction: old page exits opposite the entering page.
+                targetOffsetX = { fullWidth -> if (toM3u) fullWidth else -fullWidth }
             ) + fadeOut(tween(180))
             enter togetherWith exit
         },

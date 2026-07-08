@@ -256,11 +256,26 @@ class CheckerRepository {
         return try {
             executeText(client, request)
         } catch (e: Exception) {
-            if (isSslFailure(e)) {
-                Log.w("CheckerRepo", "SSL failed, retrying with IPTV compatibility SSL: ${request.url}")
+            if (!isSslFailure(e)) throw e
+
+            Log.w("CheckerRepo", "SSL failed, retrying with IPTV compatibility SSL: ${request.url}")
+            try {
                 executeText(insecureClient, request)
-            } else {
-                throw e
+            } catch (sslAgain: Exception) {
+                if (!isSslFailure(sslAgain)) throw sslAgain
+
+                // Final IPTV-style fallback: if HTTPS itself is broken, try the
+                // same URL over plain HTTP. Many Xtream panels serve the API on
+                // both protocols even when the advertised HTTPS certificate is bad.
+                if (request.url.scheme == "https") {
+                    val httpRequest = request.newBuilder()
+                        .url(request.url.newBuilder().scheme("http").build())
+                        .build()
+                    Log.w("CheckerRepo", "HTTPS SSL still failed, downgrading to HTTP: ${httpRequest.url}")
+                    executeText(client, httpRequest)
+                } else {
+                    throw sslAgain
+                }
             }
         }
     }
@@ -320,6 +335,11 @@ class CheckerRepository {
             e.message?.contains("Connection reset", ignoreCase = true) == true -> "connection_reset"
             e.message?.contains("timeout", ignoreCase = true) == true -> "timeout"
             e.message?.contains("ssl", ignoreCase = true) == true -> "ssl_failed"
+            e.message?.contains("handshake", ignoreCase = true) == true -> "ssl_failed"
+            e.message?.contains("certificate", ignoreCase = true) == true -> "ssl_failed"
+            e.message?.contains("cert", ignoreCase = true) == true -> "ssl_failed"
+            e.message?.contains("trust anchor", ignoreCase = true) == true -> "ssl_failed"
+            e.message?.contains("hostname", ignoreCase = true) == true -> "ssl_failed"
             e.message?.contains("redirect", ignoreCase = true) == true -> "redirect_loop"
             e.message?.contains("ECONNREFUSED", ignoreCase = true) == true -> "connection_refused"
             e.message?.contains("ENETUNREACH", ignoreCase = true) == true -> "network_unreachable"
