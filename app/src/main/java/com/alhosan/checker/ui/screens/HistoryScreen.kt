@@ -2,8 +2,6 @@ package com.alhosan.checker.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,6 +44,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.HistoryItem
 import com.alhosan.checker.ui.components.AlHosanToast
+import com.alhosan.checker.ui.components.StaggeredColumn
+import com.alhosan.checker.ui.components.alHosanStaggeredEnter
+import com.alhosan.checker.ui.components.alHosanStaggeredExit
 import com.alhosan.checker.ui.i18n.*
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
@@ -108,88 +109,92 @@ fun HistoryScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderGold),
                 shape = RoundedCornerShape(28.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(24.dp, 20.dp)
+                StaggeredColumn(
+                    modifier = Modifier.padding(24.dp, 20.dp),
+                    perItemDelayMs = 45
                 ) {
                     // Header row: title + clear all button
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = lang.hSub,
-                            color = TextDim,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .background(Color.Transparent, RoundedCornerShape(16.dp))
-                                .border(1.dp, RedInactive, RoundedCornerShape(16.dp))
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable {
-                                    viewModel.showModal("clearAllMsg") {
-                                        viewModel.clearHistory()
-                                    }
-                                }
-                                .padding(horizontal = 18.dp, vertical = 10.dp)
+                    Item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = lang.clearAll,
-                                color = RedInactive,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                text = lang.hSub,
+                                color = TextDim,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
                             )
+
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.Transparent, RoundedCornerShape(16.dp))
+                                    .border(1.dp, RedInactive, RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        viewModel.showModal("clearAllMsg") {
+                                            viewModel.clearHistory()
+                                        }
+                                    }
+                                    .padding(horizontal = 18.dp, vertical = 10.dp)
+                            ) {
+                                Text(
+                                    text = lang.clearAll,
+                                    color = RedInactive,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Item { Spacer(modifier = Modifier.height(24.dp)) }
 
                     // History list or empty state
                     if (history.isEmpty()) {
-                        // Empty state - matching HTML reference's .empty-state
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 60.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = null,
-                                tint = BorderGold,
-                                modifier = Modifier.size(56.dp)
-                            )
-                            Spacer(modifier = Modifier.height(18.dp))
-                            Text(
-                                text = lang.noHistory,
-                                color = TextDim,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                textAlign = TextAlign.Center
-                            )
+                        Item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 60.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = BorderGold,
+                                    modifier = Modifier.size(56.dp)
+                                )
+                                Spacer(modifier = Modifier.height(18.dp))
+                                Text(
+                                    text = lang.noHistory,
+                                    color = TextDim,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     } else {
-                        // History items
                         history.forEachIndexed { index, item ->
-                            HistoryItemRow(
-                                item = item,
-                                lang = lang,
-                                onClick = {
-                                    if (viewModel.restoreHistoryItem(index)) {
-                                        onRestore()
+                            Item {
+                                HistoryItemRow(
+                                    item = item,
+                                    lang = lang,
+                                    onClick = {
+                                        if (viewModel.restoreHistoryItem(index)) {
+                                            onRestore()
+                                        }
+                                    },
+                                    onDelete = {
+                                        viewModel.showModal("delLogMsg") {
+                                            viewModel.deleteHistoryItem(index)
+                                        }
                                     }
-                                },
-                                onDelete = {
-                                    viewModel.showModal("delLogMsg") {
-                                        viewModel.deleteHistoryItem(index)
-                                    }
-                                }
-                            )
-
-                            Spacer(modifier = Modifier.height(14.dp))
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
                         }
                     }
                 }
@@ -199,8 +204,8 @@ fun HistoryScreen(
         // ─── Toast at bottom ───
         AnimatedVisibility(
             visible = toastMessage != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = alHosanStaggeredEnter(),
+            exit = alHosanStaggeredExit(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 35.dp)
@@ -214,8 +219,8 @@ fun HistoryScreen(
     // ─── Modal overlay ───
     AnimatedVisibility(
         visible = modalMessage != null,
-        enter = fadeIn(),
-        exit = fadeOut()
+        enter = alHosanStaggeredEnter(durationMs = 420),
+        exit = alHosanStaggeredExit(durationMs = 300)
     ) {
         if (modalMessage != null) {
             com.alhosan.checker.ui.components.AlHosanModal(

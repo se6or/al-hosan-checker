@@ -5,8 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,6 +56,8 @@ import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
 import com.alhosan.checker.ui.components.ShinyText
 import com.alhosan.checker.ui.components.StaggeredColumn
+import com.alhosan.checker.ui.components.alHosanStaggeredEnter
+import com.alhosan.checker.ui.components.alHosanStaggeredExit
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.CardBg
@@ -235,8 +235,8 @@ fun LoginScreen(
         // ── Toast ──
         AnimatedVisibility(
             visible = toastMessage != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = alHosanStaggeredEnter(),
+            exit = alHosanStaggeredExit(),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 35.dp)
         ) {
             if (toastMessage != null) AlHosanToast(message = toastMessage!!)
@@ -247,8 +247,8 @@ fun LoginScreen(
         // sees a clean focused "checking" state.
         AnimatedVisibility(
             visible = isChecking,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = alHosanStaggeredEnter(durationMs = 420),
+            exit = alHosanStaggeredExit(durationMs = 300),
             modifier = Modifier.fillMaxSize()
         ) {
             CheckingOverlay(lang = lang)
@@ -270,22 +270,23 @@ private fun CheckingOverlay(lang: AppLang) {
             .background(Color(0xCC000000)),  // 80% black, simulates blurred backdrop
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_alhosan_logo),
-                contentDescription = null,
-                modifier = Modifier.size(96.dp),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            ShinyText(
-                text = if (lang == AppLang.AR) "الفحص جارٍ..." else "Checking...",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold
-            )
+        StaggeredColumn(perItemDelayMs = 70) {
+            Item {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_alhosan_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(96.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            Item {
+                Spacer(modifier = Modifier.height(20.dp))
+                ShinyText(
+                    text = if (lang == AppLang.AR) "الفحص جارٍ..." else "Checking...",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
         }
     }
 }
