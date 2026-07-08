@@ -158,7 +158,9 @@ fun LoginScreen(
                         onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount },
                         onDragEnd = {
                             if (abs(dragTotal) > 80f) {
-                                if (dragTotal < 0f) viewModel.setCheckMode(CheckMode.M3U)
+                                // User requested: left → right opens M3U Link,
+                                // right → left returns to Xtream.
+                                if (dragTotal > 0f) viewModel.setCheckMode(CheckMode.M3U)
                                 else viewModel.setCheckMode(CheckMode.XTREAM)
                             }
                             dragTotal = 0f
@@ -337,7 +339,7 @@ private fun SwipeableModeInputs(
                     onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount },
                     onDragEnd = {
                         if (abs(dragTotal) > 80f) {
-                            if (dragTotal < 0f) onModeChange(CheckMode.M3U)
+                            if (dragTotal > 0f) onModeChange(CheckMode.M3U)
                             else onModeChange(CheckMode.XTREAM)
                         }
                         dragTotal = 0f

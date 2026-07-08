@@ -152,9 +152,7 @@ class CheckerRepository {
 
                 val request = Request.Builder()
                     .url(apiUrl)
-                    .header("User-Agent", "AlHosanChecker/1.0")
-                    .header("Accept", "application/json")
-                    .header("Connection", "keep-alive")
+                    .addIptvHeaders(accept = "application/json, text/plain, */*")
                     .build()
 
                 val response = executeTextWithSslCompatibility(request)
@@ -241,6 +239,15 @@ class CheckerRepository {
             }
         }
 
+    private fun Request.Builder.addIptvHeaders(accept: String): Request.Builder {
+        return this
+            .header("User-Agent", "IPTVSmartersPro/4.0 (Linux; Android 10) ExoPlayerLib/2.18.1")
+            .header("Accept", accept)
+            .header("Accept-Language", "en-US,en;q=0.9,*;q=0.8")
+            .header("Connection", "close")
+            .header("Cache-Control", "no-cache")
+    }
+
     private data class HttpTextResponse(
         val code: Int,
         val isSuccessful: Boolean,
@@ -255,26 +262,26 @@ class CheckerRepository {
     private fun executeTextWithSslCompatibility(request: Request): HttpTextResponse {
         return try {
             executeText(client, request)
-        } catch (e: Exception) {
-            if (!isSslFailure(e)) throw e
+        } catch (first: Exception) {
+            if (!isRetryablePanelTransportFailure(first)) throw first
 
-            Log.w("CheckerRepo", "SSL failed, retrying with IPTV compatibility SSL: ${request.url}")
+            Log.w("CheckerRepo", "Panel transport failed, retrying with IPTV compatibility client: ${request.url}", first)
             try {
                 executeText(insecureClient, request)
-            } catch (sslAgain: Exception) {
-                if (!isSslFailure(sslAgain)) throw sslAgain
+            } catch (second: Exception) {
+                if (!isRetryablePanelTransportFailure(second)) throw second
 
-                // Final IPTV-style fallback: if HTTPS itself is broken, try the
-                // same URL over plain HTTP. Many Xtream panels serve the API on
-                // both protocols even when the advertised HTTPS certificate is bad.
+                // Final IPTV-style fallback: if HTTPS itself is broken/reset,
+                // try the same URL over plain HTTP. Many Xtream panels serve the
+                // API on both protocols even when HTTPS is misconfigured.
                 if (request.url.scheme == "https") {
                     val httpRequest = request.newBuilder()
                         .url(request.url.newBuilder().scheme("http").build())
                         .build()
-                    Log.w("CheckerRepo", "HTTPS SSL still failed, downgrading to HTTP: ${httpRequest.url}")
+                    Log.w("CheckerRepo", "HTTPS panel transport still failed, downgrading to HTTP: ${httpRequest.url}", second)
                     executeText(client, httpRequest)
                 } else {
-                    throw sslAgain
+                    throw second
                 }
             }
         }
@@ -288,6 +295,18 @@ class CheckerRepository {
                 body = response.body?.string()
             )
         }
+    }
+
+    private fun isRetryablePanelTransportFailure(e: Throwable): Boolean {
+        val msg = e.message.orEmpty()
+        return isSslFailure(e) ||
+            e is java.net.SocketException ||
+            e is java.io.EOFException ||
+            msg.contains("connection reset", ignoreCase = true) ||
+            msg.contains("stream was reset", ignoreCase = true) ||
+            msg.contains("unexpected end", ignoreCase = true) ||
+            msg.contains("broken pipe", ignoreCase = true) ||
+            e.cause?.let { isRetryablePanelTransportFailure(it) } == true
     }
 
     private fun isSslFailure(e: Throwable): Boolean {
@@ -378,8 +397,7 @@ class CheckerRepository {
         return try {
             val request = Request.Builder()
                 .url(url)
-                .header("User-Agent", "AlHosanChecker/1.0")
-                .header("Accept", "application/json")
+                .addIptvHeaders(accept = "application/json, text/plain, */*")
                 .build()
             val response = executeTextWithSslCompatibility(request)
             if (!response.isSuccessful) return "0"
@@ -545,8 +563,7 @@ class CheckerRepository {
         return try {
             val request = Request.Builder()
                 .url(m3uLink)
-                .header("User-Agent", "AlHosanChecker/1.0")
-                .header("Accept", "application/x-mpegURL, audio/x-mpegurl, text/plain, */*")
+                .addIptvHeaders(accept = "application/x-mpegURL, audio/x-mpegurl, text/plain, */*")
                 .build()
 
             val response = executeTextWithSslCompatibility(request)
