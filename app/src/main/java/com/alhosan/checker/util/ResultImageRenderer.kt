@@ -16,7 +16,7 @@ import com.alhosan.checker.ui.i18n.*
  * The app UI is Compose, but exported images are rendered here with Android's
  * native Canvas so the saved PNG is crisp, deterministic, and independent from
  * screenshots. The layout mirrors the requested ResultScreen arrangement:
- * - Main server information: fixed bilingual labels on the right, values below
+ * - Main server information: current-language labels on the right, values below
  *   on the right, and copy buttons are NOT drawn in the exported image.
  * - Created/expiry and device counters: labels on the right, values opposite on
  *   the left.
@@ -65,6 +65,8 @@ object ResultImageRenderer {
             isSubpixelText = true
         }
 
+        val iconAtRight = lang == AppLang.AR
+
         var y = 145f
         canvas.drawText(lang.splash, WIDTH / 2f, y, titlePaint)
         y += 92f
@@ -91,10 +93,11 @@ object ResultImageRenderer {
             left = left,
             width = width,
             fields = listOf(
-                Field(IconKind.Server, "السيرفر / Server", subscription.host),
-                Field(IconKind.User, "اسم المستخدم / Username", subscription.username),
-                Field(IconKind.Key, "كلمة المرور / Password", subscription.password)
-            )
+                Field(IconKind.Server, lang.lHost, subscription.host),
+                Field(IconKind.User, lang.lUser, subscription.username),
+                Field(IconKind.Key, lang.lPass, subscription.password)
+            ),
+            iconAtRight = iconAtRight
         ) + gap
 
         y = drawSideBySideCapsule(
@@ -105,10 +108,11 @@ object ResultImageRenderer {
             fields = listOf(
                 Field(IconKind.Calendar, lang.lCreated, subscription.created),
                 Field(IconKind.CalendarEnd, lang.lExpiry, subscription.expiry)
-            )
+            ),
+            iconAtRight = iconAtRight
         ) + gap
 
-        y = drawStatusTrialCapsule(canvas, subscription, lang, y, left, width) + gap
+        y = drawStatusTrialCapsule(canvas, subscription, lang, y, left, width, iconAtRight) + gap
 
         y = drawSideBySideCapsule(
             canvas = canvas,
@@ -118,7 +122,8 @@ object ResultImageRenderer {
             fields = listOf(
                 Field(IconKind.Devices, lang.lDevices, subscription.activeCons),
                 Field(IconKind.Group, lang.lMaxCons, subscription.maxCons)
-            )
+            ),
+            iconAtRight = iconAtRight
         ) + gap
 
         drawContentCountsCapsule(canvas, subscription, lang, y, left, width)
@@ -131,7 +136,8 @@ object ResultImageRenderer {
         top: Float,
         left: Float,
         width: Float,
-        fields: List<Field>
+        fields: List<Field>,
+        iconAtRight: Boolean
     ): Float {
         val rowHeight = 176f
         val height = INNER_PAD + fields.size * rowHeight + (fields.size - 1) * 26f
@@ -144,7 +150,7 @@ object ResultImageRenderer {
         var y = top + INNER_PAD + 36f
 
         fields.forEachIndexed { index, field ->
-            drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 9f, labelPaint)
+            drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 9f, labelPaint, iconAtRight)
             val displayValue = ellipsize(field.value, valuePaint, valueMaxWidth)
             canvas.drawText(displayValue, rightX, y + 62f, valuePaint)
 
@@ -163,7 +169,8 @@ object ResultImageRenderer {
         top: Float,
         left: Float,
         width: Float,
-        fields: List<Field>
+        fields: List<Field>,
+        iconAtRight: Boolean
     ): Float {
         val rowHeight = 118f
         val height = INNER_PAD + fields.size * rowHeight + (fields.size - 1) * 24f
@@ -179,7 +186,7 @@ object ResultImageRenderer {
         fields.forEachIndexed { index, field ->
             val displayValue = ellipsize(field.value, valuePaint, valueMaxWidth)
             canvas.drawText(displayValue, leftX, y, valuePaint)
-            drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 8f, labelPaint)
+            drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 8f, labelPaint, iconAtRight)
 
             y += rowHeight
             if (index < fields.lastIndex) {
@@ -197,7 +204,8 @@ object ResultImageRenderer {
         lang: AppLang,
         top: Float,
         left: Float,
-        width: Float
+        width: Float,
+        iconAtRight: Boolean
     ): Float {
         val height = 154f
         drawCapsule(canvas, left, top, width, height)
@@ -209,22 +217,44 @@ object ResultImageRenderer {
         val rightGroupX = left + width * 0.58f
 
         // Status group
-        drawMiniIcon(canvas, IconKind.Status, leftGroupX + 18f, centerY - 12f)
-        canvas.drawText(lang.lStatus, leftGroupX + 54f, centerY, labelPaint)
+        val statusLabelX: Float
+        val statusAfterLabelX: Float
+        if (iconAtRight) {
+            statusLabelX = leftGroupX
+            canvas.drawText(lang.lStatus, statusLabelX, centerY, labelPaint)
+            statusAfterLabelX = statusLabelX + labelPaint.measureText(lang.lStatus) + 28f
+            drawMiniIcon(canvas, IconKind.Status, statusAfterLabelX + 18f, centerY - 12f)
+        } else {
+            drawMiniIcon(canvas, IconKind.Status, leftGroupX + 18f, centerY - 12f)
+            statusLabelX = leftGroupX + 54f
+            canvas.drawText(lang.lStatus, statusLabelX, centerY, labelPaint)
+            statusAfterLabelX = statusLabelX + labelPaint.measureText(lang.lStatus)
+        }
 
         val statusText = if (subscription.isActive) lang.on else lang.off
         val badgeColor = if (subscription.isActive) COLOR_GREEN else COLOR_RED
         val badgeTextColor = if (subscription.isActive) Color.BLACK else Color.WHITE
-        val badgeLeft = leftGroupX + 54f + labelPaint.measureText(lang.lStatus) + 24f
+        val badgeLeft = statusAfterLabelX + if (iconAtRight) 58f else 24f
         drawBadge(canvas, badgeLeft, centerY - 44f, statusText, badgeColor, badgeTextColor)
 
         // Trial group
-        drawMiniIcon(canvas, IconKind.Trial, rightGroupX + 18f, centerY - 12f)
-        canvas.drawText(lang.lTrial, rightGroupX + 54f, centerY, labelPaint)
+        val trialLabelX: Float
+        val trialAfterLabelX: Float
+        if (iconAtRight) {
+            trialLabelX = rightGroupX
+            canvas.drawText(lang.lTrial, trialLabelX, centerY, labelPaint)
+            trialAfterLabelX = trialLabelX + labelPaint.measureText(lang.lTrial) + 28f
+            drawMiniIcon(canvas, IconKind.Trial, trialAfterLabelX + 18f, centerY - 12f)
+        } else {
+            drawMiniIcon(canvas, IconKind.Trial, rightGroupX + 18f, centerY - 12f)
+            trialLabelX = rightGroupX + 54f
+            canvas.drawText(lang.lTrial, trialLabelX, centerY, labelPaint)
+            trialAfterLabelX = trialLabelX + labelPaint.measureText(lang.lTrial)
+        }
         valuePaint.color = COLOR_TEXT_WHITE
         canvas.drawText(
             if (subscription.isTrial) lang.yes else lang.no,
-            rightGroupX + 54f + labelPaint.measureText(lang.lTrial) + 26f,
+            trialAfterLabelX + if (iconAtRight) 58f else 26f,
             centerY,
             valuePaint
         )
@@ -315,11 +345,19 @@ object ResultImageRenderer {
         label: String,
         rightX: Float,
         centerY: Float,
-        labelPaint: Paint
+        labelPaint: Paint,
+        iconAtRight: Boolean
     ) {
-        canvas.drawText(label, rightX, centerY + 13f, labelPaint)
-        val iconX = rightX - labelPaint.measureText(label) - 34f
-        drawMiniIcon(canvas, kind, iconX, centerY)
+        if (iconAtRight) {
+            // Arabic: the visual beginning of the title is the right side, so
+            // place the icon there before the title text.
+            drawMiniIcon(canvas, kind, rightX - 18f, centerY)
+            canvas.drawText(label, rightX - 54f, centerY + 13f, labelPaint)
+        } else {
+            canvas.drawText(label, rightX, centerY + 13f, labelPaint)
+            val iconX = rightX - labelPaint.measureText(label) - 34f
+            drawMiniIcon(canvas, kind, iconX, centerY)
+        }
     }
 
     private fun drawMiniIcon(canvas: Canvas, kind: IconKind, cx: Float, cy: Float) {

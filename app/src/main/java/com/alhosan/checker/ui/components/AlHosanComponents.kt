@@ -12,8 +12,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -317,7 +317,8 @@ fun CapsuleStacked(
 @Composable
 fun ResultPrimaryInfoStacked(
     items: List<CapsuleItem>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconAtRight: Boolean = false
 ) {
     CapsuleContainer(modifier = modifier) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -344,18 +345,33 @@ fun ResultPrimaryInfoStacked(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = null,
-                                    tint = Gold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = item.label,
-                                    color = TextDim,
-                                    fontSize = 13.sp,
-                                    textAlign = TextAlign.Right
-                                )
+                                if (iconAtRight) {
+                                    Text(
+                                        text = item.label,
+                                        color = TextDim,
+                                        fontSize = 13.sp,
+                                        textAlign = TextAlign.Right
+                                    )
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = null,
+                                        tint = Gold,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = item.icon,
+                                        contentDescription = null,
+                                        tint = Gold,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = item.label,
+                                        color = TextDim,
+                                        fontSize = 13.sp,
+                                        textAlign = TextAlign.Right
+                                    )
+                                }
                             }
                         }
 
@@ -393,7 +409,8 @@ fun ResultPrimaryInfoStacked(
 @Composable
 fun ResultSideBySideStacked(
     items: List<CapsuleItem>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconAtRight: Boolean = false
 ) {
     CapsuleContainer(modifier = modifier) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -424,18 +441,33 @@ fun ResultSideBySideStacked(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = null,
-                                tint = Gold,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text(
-                                text = item.label,
-                                color = TextDim,
-                                fontSize = 13.sp,
-                                textAlign = TextAlign.Right
-                            )
+                            if (iconAtRight) {
+                                Text(
+                                    text = item.label,
+                                    color = TextDim,
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Right
+                                )
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = null,
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = null,
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = item.label,
+                                    color = TextDim,
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Right
+                                )
+                            }
                         }
                     }
 
@@ -943,15 +975,17 @@ fun ShinyText(
 fun alHosanStaggeredEnter(
     durationMs: Int = 360,
     delayMs: Int = 0
-): EnterTransition = slideInVertically(
-    initialOffsetY = { it / 4 },
+): EnterTransition = slideInHorizontally(
+    // Enter from the physical right and settle leftward into place.
+    initialOffsetX = { it / 4 },
     animationSpec = tween(durationMillis = durationMs, delayMillis = delayMs)
 ) + fadeIn(animationSpec = tween(durationMillis = (durationMs - 80).coerceAtLeast(120), delayMillis = delayMs))
 
 fun alHosanStaggeredExit(
     durationMs: Int = 260
-): ExitTransition = slideOutVertically(
-    targetOffsetY = { it / 4 },
+): ExitTransition = slideOutHorizontally(
+    // Exit from left to right, matching the requested reverse direction.
+    targetOffsetX = { it / 4 },
     animationSpec = tween(durationMillis = durationMs)
 ) + fadeOut(animationSpec = tween(durationMillis = (durationMs - 60).coerceAtLeast(100)))
 
@@ -1006,8 +1040,8 @@ private class StaggeredScopeInstance(
             animationSpec = tween(durationMillis = 380, delayMillis = delayMs),
             label = "staggerAlpha_$i"
         )
-        val offsetY by animateFloatAsState(
-            targetValue = if (visible) 0f else 24f,
+        val offsetX by animateFloatAsState(
+            targetValue = if (visible) 0f else 32f,
             animationSpec = tween(durationMillis = 380, delayMillis = delayMs),
             label = "staggerOffset_$i"
         )
@@ -1019,7 +1053,7 @@ private class StaggeredScopeInstance(
                 .fillMaxWidth()
                 .graphicsLayer {
                     this.alpha = alpha
-                    this.translationY = offsetY
+                    this.translationX = offsetX
                 },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {

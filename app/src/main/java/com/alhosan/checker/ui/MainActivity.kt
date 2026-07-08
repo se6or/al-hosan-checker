@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +34,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.alhosan.checker.ui.screens.HistoryScreen
 import com.alhosan.checker.ui.screens.LoginScreen
@@ -82,63 +84,78 @@ class MainActivity : ComponentActivity() {
 fun AlHosanApp() {
     val navController = rememberNavController()
     val viewModel: CheckerViewModel = viewModel()
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = backStackEntry?.destination?.route
 
-    Box(modifier = Modifier.fillMaxSize().background(Black)) {
-        NavHost(
-            navController = navController,
-            startDestination = "splash",
-            // Staggered-style screen transitions inspired by reactbits.dev's
-            // staggered-menu. Every screen open/close/pop uses the same shared
-            // fade + slide timing as toasts, overlays and dialogs.
-            enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
-            exitTransition = { alHosanStaggeredExit(durationMs = 300) },
-            popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
-            popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
-        ) {
-            composable("splash") {
-                SplashScreen(
-                    onSplashComplete = {
-                        navController.navigate("login") {
-                            popUpTo("splash") { inclusive = true }
+    Column(modifier = Modifier.fillMaxSize().background(Black)) {
+        // Header is outside NavHost so the back button stays fixed and does not
+        // participate in the screen open/close staggered transition.
+        if (currentRoute != null && currentRoute != "splash") {
+            ScreenHeader(
+                showBack = currentRoute != "login",
+                showLang = currentRoute == "login",
+                onBack = {
+                    when (currentRoute) {
+                        "result" -> {
+                            navController.popBackStack()
+                            viewModel.resetState()
                         }
+                        "history" -> navController.popBackStack()
                     }
-                )
-            }
+                },
+                onLangToggle = viewModel::toggleLang
+            )
+            HeaderSpacer()
+        }
 
-            composable("login") {
-                LoginScreen(
-                    onResultReady = { navController.navigate("result") },
-                    onHistoryClick = { navController.navigate("history") },
-                    viewModel = viewModel
-                )
-            }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            NavHost(
+                navController = navController,
+                startDestination = "splash",
+                // Content enters from right to left, exits left to right.
+                // The header/back button above remains fixed.
+                enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+                exitTransition = { alHosanStaggeredExit(durationMs = 300) },
+                popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+                popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
+            ) {
+                composable("splash") {
+                    SplashScreen(
+                        onSplashComplete = {
+                            navController.navigate("login") {
+                                popUpTo("splash") { inclusive = true }
+                            }
+                        }
+                    )
+                }
 
-            composable("result") {
-                ResultScreen(
-                    onBack = {
-                        // Pop back to the previous screen (history or login),
-                        // THEN reset the state. Order matters: pop first so the
-                        // back stack is correct, then clear the subscription so
-                        // the next visit to result shows a fresh state.
-                        navController.popBackStack()
-                        viewModel.resetState()
-                    },
-                    viewModel = viewModel
-                )
-            }
+                composable("login") {
+                    LoginScreen(
+                        onResultReady = { navController.navigate("result") },
+                        onHistoryClick = { navController.navigate("history") },
+                        viewModel = viewModel
+                    )
+                }
 
-            composable("history") {
-                HistoryScreen(
-                    onBack = { navController.popBackStack() },
-                    onRestore = {
-                        // Sequential navigation: history -> result.
-                        // Don't popUpTo login — that would skip history on back.
-                        // Just navigate to result, so back from result returns to history,
-                        // then back from history returns to login.
-                        navController.navigate("result")
-                    },
-                    viewModel = viewModel
-                )
+                composable("result") {
+                    ResultScreen(
+                        onBack = {
+                            navController.popBackStack()
+                            viewModel.resetState()
+                        },
+                        viewModel = viewModel
+                    )
+                }
+
+                composable("history") {
+                    HistoryScreen(
+                        onBack = { navController.popBackStack() },
+                        onRestore = {
+                            navController.navigate("result")
+                        },
+                        viewModel = viewModel
+                    )
+                }
             }
         }
     }
@@ -164,6 +181,7 @@ fun AlHosanApp() {
 @Composable
 fun ScreenHeader(
     showBack: Boolean,
+    showLang: Boolean = true,
     onBack: () -> Unit,
     onLangToggle: () -> Unit
 ) {
@@ -171,7 +189,7 @@ fun ScreenHeader(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -189,14 +207,18 @@ fun ScreenHeader(
             Spacer(modifier = Modifier.width(40.dp))
         }
 
-        // Trailing slot: language toggle (always present)
-        CircleHeaderButton(onClick = onLangToggle) {
-            Icon(
-                imageVector = Icons.Default.Language,
-                contentDescription = "Language",
-                tint = Gold,
-                modifier = Modifier.size(18.dp)
-            )
+        // Trailing slot: language toggle only on the main login screen.
+        if (showLang) {
+            CircleHeaderButton(onClick = onLangToggle) {
+                Icon(
+                    imageVector = Icons.Default.Language,
+                    contentDescription = "Language",
+                    tint = Gold,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        } else {
+            Spacer(modifier = Modifier.width(40.dp))
         }
     }
 }
@@ -229,5 +251,5 @@ private fun CircleHeaderButton(
  */
 @Composable
 fun HeaderSpacer() {
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(4.dp))
 }
