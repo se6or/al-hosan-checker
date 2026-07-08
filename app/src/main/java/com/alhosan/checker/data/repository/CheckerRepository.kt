@@ -14,6 +14,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URI
+import java.net.URLDecoder
+import java.net.URLEncoder
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
@@ -124,7 +126,7 @@ class CheckerRepository {
     private suspend fun tryOnce(host: String, username: String, password: String): Result<Subscription> =
         withContext(Dispatchers.IO) {
             try {
-                val apiUrl = "${host}/player_api.php?username=${username}&password=${password}"
+                val apiUrl = "${host}/player_api.php?username=${encodeQuery(username)}&password=${encodeQuery(password)}"
 
                 val request = Request.Builder()
                     .url(apiUrl)
@@ -264,9 +266,11 @@ class CheckerRepository {
     ): Triple<String, String, String> = withContext(Dispatchers.IO) {
         try {
             val h = host.trimEnd('/')
-            val liveUrl = "${h}/player_api.php?username=${username}&password=${password}&action=get_live_streams"
-            val vodUrl = "${h}/player_api.php?username=${username}&password=${password}&action=get_vod_streams"
-            val seriesUrl = "${h}/player_api.php?username=${username}&password=${password}&action=get_series"
+            val u = encodeQuery(username)
+            val p = encodeQuery(password)
+            val liveUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_live_streams"
+            val vodUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_vod_streams"
+            val seriesUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_series"
 
             val liveCount = fetchArrayCount(liveUrl)
             val vodCount = fetchArrayCount(vodUrl)
@@ -288,8 +292,12 @@ class CheckerRepository {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return "0"
                 val body = response.body?.string() ?: return "0"
-                val arr = json.parseToJsonElement(body).jsonArray
-                arr.size.toString()
+                val element = json.parseToJsonElement(body)
+                val count = runCatching { element.jsonArray.size }.getOrNull()
+                    ?: runCatching { element.jsonObject["data"]?.jsonArray?.size }.getOrNull()
+                    ?: runCatching { element.jsonObject["streams"]?.jsonArray?.size }.getOrNull()
+                    ?: 0
+                count.toString()
             }
         } catch (e: Exception) {
             "0"
@@ -297,47 +305,223 @@ class CheckerRepository {
     }
 
     /**
-     * Check M3U link - parse it to extract Xtream credentials.
+     * Check M3U / Xtream-style links.
+     *
+     * Supported real-world forms:
+     * - /get.php?username=USER&password=PASS&type=m3u_plus
+     * - /player_api.php?username=USER&password=PASS
+     * - /xmltv.php?username=USER&password=PASS
+     * - /live/USER/PASS/123.ts
+     * - /movie/USER/PASS/123.mp4
+     * - /series/USER/PASS/123.mkv
+     *
+     * If credentials are present, we validate through player_api.php so the
+     * result is a real Xtream subscription. If there are no credentials, we
+     * still try to download the playlist and count channels/movies/series.
      */
     private suspend fun checkM3uLink(m3uLink: String): Result<Subscription> =
         withContext(Dispatchers.IO) {
+            val normalizedLink = m3uLink.trim()
             try {
-                val uri = URI(m3uLink)
-                val query = uri.query ?: ""
-                val params = query.split("&").associate {
-                    val parts = it.split("=", limit = 2)
-                    if (parts.size == 2) parts[0] to parts[1] else parts[0] to ""
-                }
-
-                val username = params["username"] ?: params["user"] ?: ""
-                val password = params["password"] ?: params["pass"] ?: ""
-                val host = "${uri.scheme}://${uri.host}${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}"
-
-                if (username.isNotBlank()) {
-                    val input = CheckerInput(
-                        host = host,
-                        username = username,
-                        password = password
+                val credentials = extractXtreamCredentials(normalizedLink)
+                if (credentials != null) {
+                    val result = checkSubscription(
+                        CheckerInput(
+                            host = credentials.host,
+                            username = credentials.username,
+                            password = credentials.password
+                        )
                     )
-                    val result = checkSubscription(input)
+
                     result.getOrNull()?.let { sub ->
-                        return@withContext Result.success(sub.copy(isM3uMode = true, m3uLink = m3uLink))
+                        return@withContext Result.success(
+                            sub.copy(
+                                isM3uMode = true,
+                                m3uLink = normalizedLink
+                            )
+                        )
                     }
+
+                    // Some panels allow get.php playlist download but block/disable
+                    // player_api.php. If that happens, still give the user a useful
+                    // real M3U result by counting the playlist itself.
+                    val playlistFallback = fetchAndCountM3uPlaylist(
+                        m3uLink = normalizedLink,
+                        host = credentials.host,
+                        username = credentials.username,
+                        password = credentials.password
+                    )
+                    if (playlistFallback != null) {
+                        return@withContext Result.success(playlistFallback)
+                    }
+
                     return@withContext result
                 }
 
-                Result.success(Subscription(
-                    host = m3uLink,
-                    username = "M3U Link",
-                    password = "--",
-                    status = "Active",
-                    isM3uMode = true,
-                    m3uLink = m3uLink
-                ))
+                val playlistOnly = fetchAndCountM3uPlaylist(normalizedLink)
+                if (playlistOnly != null) {
+                    return@withContext Result.success(playlistOnly)
+                }
+
+                Result.failure(Exception("not_xtream"))
             } catch (e: Exception) {
                 Result.failure(Exception(mapExceptionToCode(e)))
             }
         }
+
+    private data class XtreamCredentials(
+        val host: String,
+        val username: String,
+        val password: String
+    )
+
+    private fun extractXtreamCredentials(link: String): XtreamCredentials? {
+        val uri = runCatching { URI(link) }.getOrNull() ?: return null
+        val scheme = uri.scheme ?: return null
+        val hostName = uri.host ?: return null
+        val host = "$scheme://$hostName${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}"
+
+        val params = parseQueryParams(uri.rawQuery ?: uri.query.orEmpty())
+        val queryUser = params["username"] ?: params["user"] ?: params["login"]
+        val queryPass = params["password"] ?: params["pass"] ?: params["pwd"]
+        if (!queryUser.isNullOrBlank() && !queryPass.isNullOrBlank()) {
+            return XtreamCredentials(host, queryUser, queryPass)
+        }
+
+        // Path-based Xtream links: /live/user/pass/id.ts, /movie/user/pass/id,
+        // /series/user/pass/id, and sometimes /user/pass/id.
+        val segments = (uri.rawPath ?: uri.path.orEmpty())
+            .split('/')
+            .filter { it.isNotBlank() }
+            .map { decodeUrlPart(it) }
+
+        val typeIndex = segments.indexOfFirst {
+            it.equals("live", true) || it.equals("movie", true) || it.equals("series", true)
+        }
+        if (typeIndex >= 0 && segments.size >= typeIndex + 3) {
+            val user = segments[typeIndex + 1]
+            val pass = segments[typeIndex + 2]
+            if (user.isNotBlank() && pass.isNotBlank()) return XtreamCredentials(host, user, pass)
+        }
+
+        if (segments.size >= 3) {
+            val user = segments[0]
+            val pass = segments[1]
+            val maybeStream = segments[2]
+            if (user.isNotBlank() && pass.isNotBlank() && maybeStream.isNotBlank()) {
+                return XtreamCredentials(host, user, pass)
+            }
+        }
+
+        return null
+    }
+
+    private fun parseQueryParams(query: String): Map<String, String> {
+        if (query.isBlank()) return emptyMap()
+        return query.split('&')
+            .mapNotNull { part ->
+                if (part.isBlank()) return@mapNotNull null
+                val pieces = part.split('=', limit = 2)
+                val key = decodeUrlPart(pieces.getOrElse(0) { "" }).lowercase(Locale.ROOT)
+                val value = decodeUrlPart(pieces.getOrElse(1) { "" })
+                if (key.isBlank()) null else key to value
+            }
+            .toMap()
+    }
+
+    private fun decodeUrlPart(value: String): String {
+        return try {
+            URLDecoder.decode(value, "UTF-8")
+        } catch (_: Exception) {
+            value
+        }
+    }
+
+    private fun encodeQuery(value: String): String {
+        return try {
+            URLEncoder.encode(value, "UTF-8")
+        } catch (_: Exception) {
+            value
+        }
+    }
+
+    private fun fetchAndCountM3uPlaylist(
+        m3uLink: String,
+        host: String = m3uLink,
+        username: String = "M3U Link",
+        password: String = "--"
+    ): Subscription? {
+        return try {
+            val request = Request.Builder()
+                .url(m3uLink)
+                .header("User-Agent", "AlHosanChecker/1.0")
+                .header("Accept", "application/x-mpegURL, audio/x-mpegurl, text/plain, */*")
+                .build()
+
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return null
+                val body = response.body?.string() ?: return null
+                if (!body.contains("#EXTM3U", ignoreCase = true) &&
+                    !body.contains("#EXTINF", ignoreCase = true)
+                ) {
+                    return null
+                }
+                val counts = countM3uContent(body)
+                if (counts.total == 0) return null
+
+                Subscription(
+                    host = host,
+                    username = username,
+                    password = password,
+                    status = "Active",
+                    activeCons = "--",
+                    maxCons = "--",
+                    isTrial = false,
+                    liveCount = counts.live.toString(),
+                    movieCount = counts.movie.toString(),
+                    seriesCount = counts.series.toString(),
+                    isM3uMode = true,
+                    m3uLink = m3uLink
+                )
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private data class M3uCounts(val live: Int, val movie: Int, val series: Int) {
+        val total: Int get() = live + movie + series
+    }
+
+    private fun countM3uContent(content: String): M3uCounts {
+        var live = 0
+        var movie = 0
+        var series = 0
+        var pendingExtInf: String? = null
+
+        content.lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .forEach { line ->
+                if (line.startsWith("#EXTINF", ignoreCase = true)) {
+                    pendingExtInf = line
+                    return@forEach
+                }
+
+                if (line.startsWith("#")) return@forEach
+
+                val meta = pendingExtInf.orEmpty().lowercase(Locale.ROOT)
+                val url = line.lowercase(Locale.ROOT)
+                when {
+                    "/series/" in url || " group-title=\"series" in meta || "group-title='series" in meta -> series++
+                    "/movie/" in url || "/vod/" in url || " group-title=\"movies" in meta || "group-title='movies" in meta || "group-title=\"vod" in meta -> movie++
+                    else -> live++
+                }
+                pendingExtInf = null
+            }
+
+        return M3uCounts(live, movie, series)
+    }
 
     /**
      * Generate M3U link from subscription data.
@@ -347,7 +531,7 @@ class CheckerRepository {
             return subscription.m3uLink
         }
         val cleanHost = subscription.host.trimEnd('/')
-        return "${cleanHost}/get.php?username=${subscription.username}&password=${subscription.password}&type=m3u_plus&output=ts"
+        return "${cleanHost}/get.php?username=${encodeQuery(subscription.username)}&password=${encodeQuery(subscription.password)}&type=m3u_plus&output=ts"
     }
 
     private fun formatTimestamp(ts: String): String {
