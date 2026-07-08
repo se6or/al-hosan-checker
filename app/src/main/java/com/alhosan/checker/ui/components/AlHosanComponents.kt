@@ -1,6 +1,8 @@
 package com.alhosan.checker.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -11,6 +13,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -48,6 +51,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +68,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -73,6 +78,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alhosan.checker.R
@@ -295,6 +301,147 @@ fun CapsuleStacked(
                 // Divider between items (not after last)
                 if (index < items.size - 1) {
                     DividerRow()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Result primary-info capsule.
+ * Absolute layout requested by the user:
+ * - Copy icon on the physical LEFT of each title row.
+ * - Icon + bilingual/fixed label on the physical RIGHT.
+ * - Value below the title, aligned to the physical RIGHT.
+ */
+@Composable
+fun ResultPrimaryInfoStacked(
+    items: List<CapsuleItem>,
+    modifier: Modifier = Modifier
+) {
+    CapsuleContainer(modifier = modifier) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items.forEachIndexed { index, item ->
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            if (item.onCopy != null) {
+                                CopyButton(
+                                    onClick = item.onCopy,
+                                    modifier = Modifier.align(Alignment.CenterStart)
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(start = 44.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = item.icon,
+                                    contentDescription = null,
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = item.label,
+                                    color = TextDim,
+                                    fontSize = 13.sp,
+                                    textAlign = TextAlign.Right
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(5.dp))
+
+                        Text(
+                            text = item.value,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 44.dp),
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Right,
+                            lineHeight = 19.sp
+                        )
+                    }
+
+                    if (index < items.size - 1) {
+                        DividerRow()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Result side-by-side capsule.
+ * Absolute layout requested by the user:
+ * - Icon + label on the physical RIGHT.
+ * - Value/result on the physical LEFT, opposite the label.
+ * - No copy buttons here.
+ */
+@Composable
+fun ResultSideBySideStacked(
+    items: List<CapsuleItem>,
+    modifier: Modifier = Modifier
+) {
+    CapsuleContainer(modifier = modifier) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items.forEachIndexed { index, item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = item.value,
+                            modifier = Modifier.weight(1f),
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Left,
+                            maxLines = 2,
+                            lineHeight = 19.sp
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = null,
+                                tint = Gold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = item.label,
+                                color = TextDim,
+                                fontSize = 13.sp,
+                                textAlign = TextAlign.Right
+                            )
+                        }
+                    }
+
+                    if (index < items.size - 1) {
+                        DividerRow()
+                    }
                 }
             }
         }
@@ -608,25 +755,31 @@ fun AlHosanModal(
             border = BorderStroke(1.dp, BorderGold),
             shape = RoundedCornerShape(28.dp)
         ) {
-            Column(
+            StaggeredColumn(
                 modifier = Modifier.padding(24.dp),
+                perItemDelayMs = 65,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = message,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 24.sp
-                )
+                Item {
+                    Text(
+                        text = message,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 24.sp
+                    )
+                }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                     // Cancel button
                     Box(
                         modifier = Modifier
@@ -666,6 +819,7 @@ fun AlHosanModal(
             }
         }
     }
+}
 }
 
 /**
@@ -782,6 +936,26 @@ fun ShinyText(
 }
 
 /* ════════════════════════════════════════════════════════════════════
+ * Shared open/close transitions for overlays, toasts and dialogs.
+ * These keep every small interface consistent with the same staggered-menu
+ * feel used by screens: short fade + cascading slide.
+ * ═════════════════════════════════════════════════════════════════ */
+fun alHosanStaggeredEnter(
+    durationMs: Int = 360,
+    delayMs: Int = 0
+): EnterTransition = slideInVertically(
+    initialOffsetY = { it / 4 },
+    animationSpec = tween(durationMillis = durationMs, delayMillis = delayMs)
+) + fadeIn(animationSpec = tween(durationMillis = (durationMs - 80).coerceAtLeast(120), delayMillis = delayMs))
+
+fun alHosanStaggeredExit(
+    durationMs: Int = 260
+): ExitTransition = slideOutVertically(
+    targetOffsetY = { it / 4 },
+    animationSpec = tween(durationMillis = durationMs)
+) + fadeOut(animationSpec = tween(durationMillis = (durationMs - 60).coerceAtLeast(100)))
+
+/* ════════════════════════════════════════════════════════════════════
  * StaggeredAppear — child appears with a slight delay + slide-up + fade.
  * Inspired by https://reactbits.dev/components/staggered-menu
  *
@@ -793,6 +967,8 @@ fun ShinyText(
 fun StaggeredColumn(
     modifier: Modifier = Modifier,
     perItemDelayMs: Int = 60,
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     content: @Composable StaggeredScope.() -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
@@ -800,7 +976,11 @@ fun StaggeredColumn(
         // Trigger the staggered reveal on first composition
         visible = true
     }
-    Column(modifier = modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = horizontalAlignment,
+        verticalArrangement = verticalArrangement
+    ) {
         val scope = StaggeredScopeInstance(visible, perItemDelayMs)
         scope.content()
     }
@@ -840,7 +1020,8 @@ private class StaggeredScopeInstance(
                 .graphicsLayer {
                     this.alpha = alpha
                     this.translationY = offsetY
-                }
+                },
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             content()
         }

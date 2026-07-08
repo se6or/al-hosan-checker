@@ -5,8 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -53,9 +51,13 @@ import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
 import com.alhosan.checker.ui.components.CapsuleItem
-import com.alhosan.checker.ui.components.CapsuleStacked
 import com.alhosan.checker.ui.components.ContentCountDisplay
+import com.alhosan.checker.ui.components.ResultPrimaryInfoStacked
+import com.alhosan.checker.ui.components.ResultSideBySideStacked
+import com.alhosan.checker.ui.components.StaggeredColumn
 import com.alhosan.checker.ui.components.StatusBadge
+import com.alhosan.checker.ui.components.alHosanStaggeredEnter
+import com.alhosan.checker.ui.components.alHosanStaggeredExit
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
 import com.alhosan.checker.ui.theme.Gold
@@ -107,6 +109,12 @@ fun ResultScreen(
         }
     }
 
+    val copyResultValue: (String) -> Unit = { value ->
+        if (copyToClipboard(context, value)) {
+            viewModel.showToast(lang.tCopied)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Black)) {
         Column(
             modifier = Modifier
@@ -130,153 +138,154 @@ fun ResultScreen(
                     .padding(16.dp)
             ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
-            // The visual layout here mirrors what ResultImageRenderer draws to the
-            // exported PNG. We don't capture this Compose subtree directly anymore —
-            // instead, the export button re-renders the data via ResultImageRenderer.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Black, RoundedCornerShape(28.dp))
                     .padding(16.dp)
             ) {
-                // Capsule 1: Host, Username, Password (stacked with copy)
-                CapsuleStacked(
-                    items = listOf(
-                        CapsuleItem(
-                            icon = Icons.Default.SignalCellularAlt,
-                            label = lang.lHost,
-                            value = subscription.host,
-                            onCopy = { copyToClipboard(context, subscription.host) }
-                        ),
-                        CapsuleItem(
-                            icon = Icons.Default.Groups,
-                            label = lang.lUser,
-                            value = subscription.username,
-                            onCopy = { copyToClipboard(context, subscription.username) }
-                        ),
-                        CapsuleItem(
-                            icon = Icons.Default.Key,
-                            label = lang.lPass,
-                            value = subscription.password,
-                            onCopy = { copyToClipboard(context, subscription.password) }
-                        )
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Capsule 2: Created / Expiry dates
-                CapsuleStacked(
-                    items = listOf(
-                        CapsuleItem(
-                            icon = Icons.Default.CalendarToday,
-                            label = lang.lCreated,
-                            value = subscription.created,
-                            onCopy = { copyToClipboard(context, subscription.created) }
-                        ),
-                        CapsuleItem(
-                            icon = Icons.Default.CalendarMonth,
-                            label = lang.lExpiry,
-                            value = subscription.expiry,
-                            onCopy = { copyToClipboard(context, subscription.expiry) }
-                        )
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Capsule 3: Status + Trial (horizontal, matching HTML reference)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(listOf(Color(0xFF080808), Color(0xFF121212))),
-                            RoundedCornerShape(20.dp)
-                        )
-                        .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Status
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SignalCellularAlt,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Text(
-                            text = lang.lStatus,
-                            color = Color(0xFFA0A0A0),
-                            fontSize = 13.sp
-                        )
-                        StatusBadge(
-                            isActive = subscription.isActive,
-                            text = if (subscription.isActive) lang.on else lang.off
+                // ReactBits-like staggered reveal for every result frame.
+                StaggeredColumn(perItemDelayMs = 45) {
+                    // Frame 1: Main server information. Labels are fixed bilingual
+                    // text, aligned right; copy buttons are left-only and show toast.
+                    Item {
+                        ResultPrimaryInfoStacked(
+                            items = listOf(
+                                CapsuleItem(
+                                    icon = Icons.Default.SignalCellularAlt,
+                                    label = "السيرفر / Server",
+                                    value = subscription.host,
+                                    onCopy = { copyResultValue(subscription.host) }
+                                ),
+                                CapsuleItem(
+                                    icon = Icons.Default.Groups,
+                                    label = "اسم المستخدم / Username",
+                                    value = subscription.username,
+                                    onCopy = { copyResultValue(subscription.username) }
+                                ),
+                                CapsuleItem(
+                                    icon = Icons.Default.Key,
+                                    label = "كلمة المرور / Password",
+                                    value = subscription.password,
+                                    onCopy = { copyResultValue(subscription.password) }
+                                )
+                            )
                         )
                     }
 
-                    // Trial
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Science,
-                            contentDescription = null,
-                            tint = Gold,
-                            modifier = Modifier.size(16.dp)
+                    // Frame 2: Created / Expiry dates. Titles right, results left.
+                    Item {
+                        ResultSideBySideStacked(
+                            items = listOf(
+                                CapsuleItem(
+                                    icon = Icons.Default.CalendarToday,
+                                    label = lang.lCreated,
+                                    value = subscription.created
+                                ),
+                                CapsuleItem(
+                                    icon = Icons.Default.CalendarMonth,
+                                    label = lang.lExpiry,
+                                    value = subscription.expiry
+                                )
+                            )
                         )
-                        Text(
-                            text = lang.lTrial,
-                            color = Color(0xFFA0A0A0),
-                            fontSize = 13.sp
+                    }
+
+                    // Frame 3: Status + Trial kept in its previous horizontal layout.
+                    Item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.linearGradient(listOf(Color(0xFF080808), Color(0xFF121212))),
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .border(1.dp, BorderGold, RoundedCornerShape(20.dp))
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Status
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SignalCellularAlt,
+                                    contentDescription = null,
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = lang.lStatus,
+                                    color = Color(0xFFA0A0A0),
+                                    fontSize = 13.sp
+                                )
+                                StatusBadge(
+                                    isActive = subscription.isActive,
+                                    text = if (subscription.isActive) lang.on else lang.off
+                                )
+                            }
+
+                            // Trial
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Science,
+                                    contentDescription = null,
+                                    tint = Gold,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = lang.lTrial,
+                                    color = Color(0xFFA0A0A0),
+                                    fontSize = 13.sp
+                                )
+                                Text(
+                                    text = if (subscription.isTrial) lang.yes else lang.no,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    // Frame 4: Active connections / Max connections. Titles right,
+                    // results left, with no copy icons.
+                    Item {
+                        ResultSideBySideStacked(
+                            items = listOf(
+                                CapsuleItem(
+                                    icon = Icons.Default.Devices,
+                                    label = lang.lDevices,
+                                    value = subscription.activeCons
+                                ),
+                                CapsuleItem(
+                                    icon = Icons.Default.Groups,
+                                    label = lang.lMaxCons,
+                                    value = subscription.maxCons
+                                )
+                            )
                         )
-                        Text(
-                            text = if (subscription.isTrial) lang.yes else lang.no,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp
+                    }
+
+                    // Frame 5: Content counts (Channels | Movies | Series)
+                    Item {
+                        ContentCountDisplay(
+                            liveCount = subscription.liveCount,
+                            movieCount = subscription.movieCount,
+                            seriesCount = subscription.seriesCount,
+                            channelsLabel = lang.lChannels,
+                            moviesLabel = lang.lMovies,
+                            seriesLabel = lang.lSeries,
+                            isLoading = isCounting
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Capsule 4: Active connections / Max connections
-                CapsuleStacked(
-                    items = listOf(
-                        CapsuleItem(
-                            icon = Icons.Default.Devices,
-                            label = lang.lDevices,
-                            value = subscription.activeCons,
-                            onCopy = { copyToClipboard(context, subscription.activeCons) }
-                        ),
-                        CapsuleItem(
-                            icon = Icons.Default.Groups,
-                            label = lang.lMaxCons,
-                            value = subscription.maxCons,
-                            onCopy = { copyToClipboard(context, subscription.maxCons) }
-                        )
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Capsule 5: Content counts (Channels | Movies | Series)
-                ContentCountDisplay(
-                    liveCount = subscription.liveCount,
-                    movieCount = subscription.movieCount,
-                    seriesCount = subscription.seriesCount,
-                    channelsLabel = lang.lChannels,
-                    moviesLabel = lang.lMovies,
-                    seriesLabel = lang.lSeries,
-                    isLoading = isCounting
-                )
             }
 
             // ─── Action row: Save (hidden for restored items), M3U, Export Image ───
@@ -304,8 +313,9 @@ fun ResultScreen(
                         icon = Icons.Default.Link,
                         onClick = {
                             val m3uLink = viewModel.generateM3uLink()
-                            copyToClipboard(context, m3uLink)
-                            viewModel.showToast(lang.tCopiedM3U)
+                            if (copyToClipboard(context, m3uLink)) {
+                                viewModel.showToast(lang.tCopiedM3U)
+                            }
                         },
                         isSubButton = true
                     )
@@ -343,8 +353,8 @@ fun ResultScreen(
         // ─── Toast at bottom ───
         AnimatedVisibility(
             visible = toastMessage != null,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = alHosanStaggeredEnter(),
+            exit = alHosanStaggeredExit(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 35.dp)
@@ -359,10 +369,13 @@ fun ResultScreen(
 /**
  * Copy value to clipboard - matching HTML reference's copyVal() function
  */
-private fun copyToClipboard(context: Context, text: String) {
-    if (text == "--" || text == "N/A" || text.isBlank()) return
-    try {
+private fun copyToClipboard(context: Context, text: String): Boolean {
+    if (text == "--" || text == "N/A" || text.isBlank()) return false
+    return try {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("AlHosan", text))
-    } catch (_: Exception) { }
+        true
+    } catch (_: Exception) {
+        false
+    }
 }
