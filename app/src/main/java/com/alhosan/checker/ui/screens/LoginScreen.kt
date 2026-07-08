@@ -7,14 +7,12 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -309,7 +307,7 @@ private fun SwipeableModeInputs(
                 animationSpec = tween(260),
                 targetOffsetX = { fullWidth -> if (toM3u) -fullWidth else fullWidth }
             ) + fadeOut(tween(180))
-            enter togetherWith exit using SizeTransform(clip = false)
+            enter togetherWith exit
         },
         label = "mode-inputs",
         modifier = Modifier
