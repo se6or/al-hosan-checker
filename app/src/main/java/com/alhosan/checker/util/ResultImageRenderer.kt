@@ -3,254 +3,416 @@ package com.alhosan.checker.util
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.Subscription
 import com.alhosan.checker.ui.i18n.*
 
 /**
- * Renders the result card to a Bitmap using Android's native Canvas API.
+ * High-quality PNG renderer for the result screen.
  *
- * This replaces the html2canvas approach from the HTML reference and the
- * Compose GraphicsLayer capture (which requires experimental Compose 1.7+ APIs).
- * Using native Canvas means it works on any Compose version and is fully
- * under our control for layout and styling.
- *
- * Output dimensions: 1080 x 1620 pixels (3:4.5 aspect, suitable for sharing).
+ * The app UI is Compose, but exported images are rendered here with Android's
+ * native Canvas so the saved PNG is crisp, deterministic, and independent from
+ * screenshots. The layout mirrors the requested ResultScreen arrangement:
+ * - Main server information: fixed bilingual labels on the right, values below
+ *   on the right, and copy buttons are NOT drawn in the exported image.
+ * - Created/expiry and device counters: labels on the right, values opposite on
+ *   the left.
+ * - Status/trial: kept as a compact horizontal row.
  */
 object ResultImageRenderer {
 
-    private const val WIDTH = 1080
-    private const val HEIGHT = 1700
-    private const val PADDING = 50f
-    private const val CARD_RADIUS = 36f
+    // High-resolution export for a sharper PNG in galleries/sharing.
+    private const val WIDTH = 2160
+    private const val HEIGHT = 2500
+    private const val MARGIN = 100f
+    private const val INNER_PAD = 56f
+    private const val CAPSULE_RADIUS = 42f
+    private const val CARD_RADIUS = 58f
 
-    // Colors matching the app theme
     private val COLOR_BG = Color.BLACK
-    private val COLOR_CARD_BG = Color.parseColor("#0A0A0A")
+    private val COLOR_CARD_BG = Color.parseColor("#050505")
+    private val COLOR_CAPSULE_TOP = Color.parseColor("#080808")
+    private val COLOR_CAPSULE_BOTTOM = Color.parseColor("#121212")
     private val COLOR_BORDER = Color.parseColor("#1F1A0F")
     private val COLOR_ACCENT = Color.parseColor("#D4AF37")
-    private val COLOR_ACCENT_LIGHT = Color.parseColor("#FFDF00")
     private val COLOR_TEXT_DIM = Color.parseColor("#A0A0A0")
     private val COLOR_TEXT_WHITE = Color.WHITE
     private val COLOR_GREEN = Color.parseColor("#00E676")
     private val COLOR_RED = Color.parseColor("#FF1744")
-    private val COLOR_DIVIDER = Color.parseColor("#1F1A0F")
+    private val COLOR_SEPARATOR = Color.parseColor("#333333")
 
-    /**
-     * Render the subscription data to a shareable Bitmap.
-     */
+    private data class Field(
+        val icon: IconKind,
+        val label: String,
+        val value: String
+    )
+
+    private enum class IconKind { Server, User, Key, Calendar, CalendarEnd, Devices, Group, Status, Trial }
+
     fun render(subscription: Subscription, lang: AppLang): Bitmap {
         val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        canvas.drawColor(COLOR_BG)
 
-        // Background
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_BG }
-        canvas.drawRect(0f, 0f, WIDTH.toFloat(), HEIGHT.toFloat(), bgPaint)
-
-        var y = PADDING + 40f
-
-        // App title (top)
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_ACCENT
-            textSize = 48f
+            textSize = 78f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            isSubpixelText = true
         }
+
+        var y = 145f
         canvas.drawText(lang.splash, WIDTH / 2f, y, titlePaint)
-        y += 80f
+        y += 92f
 
-        // Card background
-        val cardRect = RectF(
-            PADDING, y,
-            WIDTH - PADDING, HEIGHT - PADDING
-        )
+        val cardRect = RectF(MARGIN, y, WIDTH - MARGIN, HEIGHT - MARGIN)
         val cardPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_CARD_BG }
-        canvas.drawRoundRect(cardRect, CARD_RADIUS, CARD_RADIUS, cardPaint)
-
-        // Card border (gold)
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_BORDER
             style = Paint.Style.STROKE
-            strokeWidth = 3f
+            strokeWidth = 3.5f
         }
+        canvas.drawRoundRect(cardRect, CARD_RADIUS, CARD_RADIUS, cardPaint)
         canvas.drawRoundRect(cardRect, CARD_RADIUS, CARD_RADIUS, borderPaint)
 
-        y += 50f
+        y += 70f
+        val left = cardRect.left + 42f
+        val right = cardRect.right - 42f
+        val width = right - left
+        val gap = 28f
 
-        // Section: Host / Username / Password (stacked)
-        y = drawStackedField(canvas, lang.lHost, subscription.host, y, isLtr = true)
-        y = drawDivider(canvas, y)
-        y = drawStackedField(canvas, lang.lUser, subscription.username, y)
-        y = drawDivider(canvas, y)
-        y = drawStackedField(canvas, lang.lPass, subscription.password, y)
+        y = drawPrimaryInfoCapsule(
+            canvas = canvas,
+            top = y,
+            left = left,
+            width = width,
+            fields = listOf(
+                Field(IconKind.Server, "السيرفر / Server", subscription.host),
+                Field(IconKind.User, "اسم المستخدم / Username", subscription.username),
+                Field(IconKind.Key, "كلمة المرور / Password", subscription.password)
+            )
+        ) + gap
 
-        y += 30f
+        y = drawSideBySideCapsule(
+            canvas = canvas,
+            top = y,
+            left = left,
+            width = width,
+            fields = listOf(
+                Field(IconKind.Calendar, lang.lCreated, subscription.created),
+                Field(IconKind.CalendarEnd, lang.lExpiry, subscription.expiry)
+            )
+        ) + gap
 
-        // Section: Created / Expiry (stacked)
-        y = drawStackedField(canvas, lang.lCreated, subscription.created, y)
-        y = drawDivider(canvas, y)
-        y = drawStackedField(canvas, lang.lExpiry, subscription.expiry, y)
+        y = drawStatusTrialCapsule(canvas, subscription, lang, y, left, width) + gap
 
-        y += 30f
+        y = drawSideBySideCapsule(
+            canvas = canvas,
+            top = y,
+            left = left,
+            width = width,
+            fields = listOf(
+                Field(IconKind.Devices, lang.lDevices, subscription.activeCons),
+                Field(IconKind.Group, lang.lMaxCons, subscription.maxCons)
+            )
+        ) + gap
 
-        // Section: Status + Trial (side by side)
-        y = drawStatusRow(canvas, subscription, lang, y)
-
-        y += 30f
-
-        // Section: Active connections / Max connections
-        y = drawStackedField(canvas, lang.lDevices, subscription.activeCons, y)
-        y = drawDivider(canvas, y)
-        y = drawStackedField(canvas, lang.lMaxCons, subscription.maxCons, y)
-
-        y += 30f
-
-        // Section: Content counts
-        y = drawContentCounts(canvas, subscription, lang, y)
+        drawContentCountsCapsule(canvas, subscription, lang, y, left, width)
 
         return bitmap
     }
 
-    private fun drawStackedField(
+    private fun drawPrimaryInfoCapsule(
         canvas: Canvas,
-        label: String,
-        value: String,
-        y: Float,
-        isLtr: Boolean = false
+        top: Float,
+        left: Float,
+        width: Float,
+        fields: List<Field>
     ): Float {
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TEXT_DIM
-            textSize = 32f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            textAlign = Paint.Align.CENTER
+        val rowHeight = 176f
+        val height = INNER_PAD + fields.size * rowHeight + (fields.size - 1) * 26f
+        drawCapsule(canvas, left, top, width, height)
+
+        val labelPaint = labelPaint(Paint.Align.RIGHT)
+        val valuePaint = valuePaint(Paint.Align.RIGHT, 40f)
+        val rightX = left + width - INNER_PAD
+        val valueMaxWidth = width - INNER_PAD * 2
+        var y = top + INNER_PAD + 36f
+
+        fields.forEachIndexed { index, field ->
+            drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 9f, labelPaint)
+            val displayValue = ellipsize(field.value, valuePaint, valueMaxWidth)
+            canvas.drawText(displayValue, rightX, y + 62f, valuePaint)
+
+            y += rowHeight
+            if (index < fields.lastIndex) {
+                drawDivider(canvas, left, width, y - 34f)
+                y += 26f
+            }
         }
-        val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TEXT_WHITE
-            textSize = 40f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textAlign = Paint.Align.CENTER
-        }
 
-        // Label
-        canvas.drawText(label, WIDTH / 2f, y, labelPaint)
-
-        // Value (truncate if too long)
-        val maxValueWidth = (WIDTH - 2 * PADDING - 100).toFloat()
-        val displayValue = ellipsize(value, valuePaint, maxValueWidth)
-        canvas.drawText(displayValue, WIDTH / 2f, y + 50f, valuePaint)
-
-        return y + 80f
+        return top + height
     }
 
-    private fun drawDivider(canvas: Canvas, y: Float): Float {
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_DIVIDER
-            strokeWidth = 2f
+    private fun drawSideBySideCapsule(
+        canvas: Canvas,
+        top: Float,
+        left: Float,
+        width: Float,
+        fields: List<Field>
+    ): Float {
+        val rowHeight = 118f
+        val height = INNER_PAD + fields.size * rowHeight + (fields.size - 1) * 24f
+        drawCapsule(canvas, left, top, width, height)
+
+        val labelPaint = labelPaint(Paint.Align.RIGHT)
+        val valuePaint = valuePaint(Paint.Align.LEFT, 40f)
+        val leftX = left + INNER_PAD
+        val rightX = left + width - INNER_PAD
+        val valueMaxWidth = width * 0.48f
+        var y = top + INNER_PAD + 42f
+
+        fields.forEachIndexed { index, field ->
+            val displayValue = ellipsize(field.value, valuePaint, valueMaxWidth)
+            canvas.drawText(displayValue, leftX, y, valuePaint)
+            drawIconBeforeRightLabel(canvas, field.icon, field.label, rightX, y - 8f, labelPaint)
+
+            y += rowHeight
+            if (index < fields.lastIndex) {
+                drawDivider(canvas, left, width, y - 44f)
+                y += 24f
+            }
         }
-        val startX = WIDTH * 0.15f
-        val endX = WIDTH * 0.85f
-        canvas.drawLine(startX, y, endX, y, paint)
-        return y + 20f
+
+        return top + height
     }
 
-    private fun drawStatusRow(
+    private fun drawStatusTrialCapsule(
         canvas: Canvas,
         subscription: Subscription,
         lang: AppLang,
-        y: Float
+        top: Float,
+        left: Float,
+        width: Float
     ): Float {
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_TEXT_DIM
-            textSize = 32f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        }
-        val valuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = 36f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            textAlign = Paint.Align.CENTER
-        }
+        val height = 154f
+        drawCapsule(canvas, left, top, width, height)
 
-        // Left half: Status
-        val leftCenter = WIDTH * 0.25f
-        canvas.drawText(lang.lStatus, leftCenter - labelPaint.measureText(lang.lStatus) / 2, y, labelPaint)
+        val labelPaint = labelPaint(Paint.Align.LEFT)
+        val valuePaint = valuePaint(Paint.Align.LEFT, 38f)
+        val centerY = top + height / 2f + 13f
+        val leftGroupX = left + INNER_PAD
+        val rightGroupX = left + width * 0.58f
+
+        // Status group
+        drawMiniIcon(canvas, IconKind.Status, leftGroupX + 18f, centerY - 12f)
+        canvas.drawText(lang.lStatus, leftGroupX + 54f, centerY, labelPaint)
 
         val statusText = if (subscription.isActive) lang.on else lang.off
-        val statusColor = if (subscription.isActive) COLOR_GREEN else COLOR_RED
-        val statusTextColor = if (subscription.isActive) Color.BLACK else Color.WHITE
+        val badgeColor = if (subscription.isActive) COLOR_GREEN else COLOR_RED
+        val badgeTextColor = if (subscription.isActive) Color.BLACK else Color.WHITE
+        val badgeLeft = leftGroupX + 54f + labelPaint.measureText(lang.lStatus) + 24f
+        drawBadge(canvas, badgeLeft, centerY - 44f, statusText, badgeColor, badgeTextColor)
 
-        // Status badge background
-        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = statusColor }
-        val badgeWidth = 220f
-        val badgeHeight = 56f
-        val badgeRect = RectF(
-            leftCenter - badgeWidth / 2,
-            y + 20f,
-            leftCenter + badgeWidth / 2,
-            y + 20f + badgeHeight
-        )
-        canvas.drawRoundRect(badgeRect, 28f, 28f, badgePaint)
-
-        valuePaint.color = statusTextColor
-        canvas.drawText(statusText, leftCenter, y + 20f + badgeHeight / 2 + 12f, valuePaint)
-
-        // Right half: Trial
-        val rightCenter = WIDTH * 0.75f
-        canvas.drawText(lang.lTrial, rightCenter - labelPaint.measureText(lang.lTrial) / 2, y, labelPaint)
-        val trialText = if (subscription.isTrial) lang.yes else lang.no
+        // Trial group
+        drawMiniIcon(canvas, IconKind.Trial, rightGroupX + 18f, centerY - 12f)
+        canvas.drawText(lang.lTrial, rightGroupX + 54f, centerY, labelPaint)
         valuePaint.color = COLOR_TEXT_WHITE
-        canvas.drawText(trialText, rightCenter, y + 60f, valuePaint)
+        canvas.drawText(
+            if (subscription.isTrial) lang.yes else lang.no,
+            rightGroupX + 54f + labelPaint.measureText(lang.lTrial) + 26f,
+            centerY,
+            valuePaint
+        )
 
-        return y + 100f
+        return top + height
     }
 
-    private fun drawContentCounts(
+    private fun drawContentCountsCapsule(
         canvas: Canvas,
         subscription: Subscription,
         lang: AppLang,
-        y: Float
+        top: Float,
+        left: Float,
+        width: Float
     ): Float {
+        val height = 220f
+        drawCapsule(canvas, left, top, width, height)
+
         val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_TEXT_DIM
-            textSize = 28f
+            textSize = 34f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             textAlign = Paint.Align.CENTER
+            isSubpixelText = true
         }
         val countPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = COLOR_TEXT_WHITE
-            textSize = 56f
+            textSize = 58f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            isSubpixelText = true
         }
         val sepPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#333333")
-            textSize = 56f
+            color = COLOR_SEPARATOR
+            textSize = 58f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            isSubpixelText = true
         }
 
-        // Three columns: Channels | Movies | Series
-        val col1 = WIDTH * 0.2f
-        val col2 = WIDTH * 0.5f
-        val col3 = WIDTH * 0.8f
+        val col1 = left + width * 0.18f
+        val sep1 = left + width * 0.34f
+        val col2 = left + width * 0.50f
+        val sep2 = left + width * 0.66f
+        val col3 = left + width * 0.82f
+        val labelY = top + 78f
+        val countY = top + 155f
 
-        // Labels
-        canvas.drawText(lang.lChannels, col1, y, labelPaint)
-        canvas.drawText(lang.lMovies, col2, y, labelPaint)
-        canvas.drawText(lang.lSeries, col3, y, labelPaint)
+        canvas.drawText(lang.lChannels, col1, labelY, labelPaint)
+        canvas.drawText(lang.lMovies, col2, labelY, labelPaint)
+        canvas.drawText(lang.lSeries, col3, labelY, labelPaint)
 
-        // Counts
-        canvas.drawText(formatCount(subscription.liveCount), col1, y + 80f, countPaint)
-        canvas.drawText("|", col2, y + 80f, sepPaint)
-        canvas.drawText(formatCount(subscription.movieCount), col3 - 20f, y + 80f, countPaint)
-        // Re-draw series at col3 (the | is at col2)
-        canvas.drawText(formatCount(subscription.seriesCount), col3, y + 80f, countPaint)
+        canvas.drawText(formatCount(subscription.liveCount), col1, countY, countPaint)
+        canvas.drawText("|", sep1, countY, sepPaint)
+        canvas.drawText(formatCount(subscription.movieCount), col2, countY, countPaint)
+        canvas.drawText("|", sep2, countY, sepPaint)
+        canvas.drawText(formatCount(subscription.seriesCount), col3, countY, countPaint)
 
-        return y + 130f
+        return top + height
+    }
+
+    private fun drawCapsule(canvas: Canvas, left: Float, top: Float, width: Float, height: Float) {
+        val rect = RectF(left, top, left + width, top + height)
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_CAPSULE_BOTTOM }
+        val highlightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_CAPSULE_TOP }
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_BORDER
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+
+        canvas.drawRoundRect(rect, CAPSULE_RADIUS, CAPSULE_RADIUS, fillPaint)
+        canvas.drawRoundRect(RectF(rect.left, rect.top, rect.right, rect.top + height * 0.52f), CAPSULE_RADIUS, CAPSULE_RADIUS, highlightPaint)
+        canvas.drawRoundRect(rect, CAPSULE_RADIUS, CAPSULE_RADIUS, strokePaint)
+    }
+
+    private fun drawDivider(canvas: Canvas, left: Float, width: Float, y: Float) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_BORDER
+            strokeWidth = 2.4f
+        }
+        canvas.drawLine(left + width * 0.08f, y, left + width * 0.92f, y, paint)
+    }
+
+    private fun drawIconBeforeRightLabel(
+        canvas: Canvas,
+        kind: IconKind,
+        label: String,
+        rightX: Float,
+        centerY: Float,
+        labelPaint: Paint
+    ) {
+        canvas.drawText(label, rightX, centerY + 13f, labelPaint)
+        val iconX = rightX - labelPaint.measureText(label) - 34f
+        drawMiniIcon(canvas, kind, iconX, centerY)
+    }
+
+    private fun drawMiniIcon(canvas: Canvas, kind: IconKind, cx: Float, cy: Float) {
+        val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_ACCENT
+            style = Paint.Style.STROKE
+            strokeWidth = 4.5f
+            strokeCap = Paint.Cap.ROUND
+            strokeJoin = Paint.Join.ROUND
+        }
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = COLOR_ACCENT
+            style = Paint.Style.FILL
+        }
+
+        when (kind) {
+            IconKind.Server, IconKind.Status -> {
+                canvas.drawLine(cx - 16f, cy + 14f, cx - 16f, cy - 2f, stroke)
+                canvas.drawLine(cx, cy + 14f, cx, cy - 12f, stroke)
+                canvas.drawLine(cx + 16f, cy + 14f, cx + 16f, cy - 22f, stroke)
+            }
+            IconKind.User, IconKind.Group -> {
+                canvas.drawCircle(cx, cy - 12f, 10f, stroke)
+                canvas.drawArc(RectF(cx - 22f, cy, cx + 22f, cy + 34f), 200f, 140f, false, stroke)
+                if (kind == IconKind.Group) {
+                    canvas.drawCircle(cx - 25f, cy - 7f, 7f, stroke)
+                    canvas.drawCircle(cx + 25f, cy - 7f, 7f, stroke)
+                }
+            }
+            IconKind.Key -> {
+                canvas.drawCircle(cx - 12f, cy - 2f, 11f, stroke)
+                canvas.drawLine(cx, cy - 2f, cx + 28f, cy - 2f, stroke)
+                canvas.drawLine(cx + 18f, cy - 2f, cx + 18f, cy + 10f, stroke)
+                canvas.drawLine(cx + 28f, cy - 2f, cx + 28f, cy + 10f, stroke)
+            }
+            IconKind.Calendar, IconKind.CalendarEnd -> {
+                val r = RectF(cx - 22f, cy - 22f, cx + 22f, cy + 24f)
+                canvas.drawRoundRect(r, 7f, 7f, stroke)
+                canvas.drawLine(cx - 22f, cy - 8f, cx + 22f, cy - 8f, stroke)
+                canvas.drawCircle(cx - 9f, cy + 6f, 3.5f, fill)
+                canvas.drawCircle(cx + 9f, cy + 6f, 3.5f, fill)
+                if (kind == IconKind.CalendarEnd) canvas.drawLine(cx + 7f, cy + 18f, cx + 18f, cy + 18f, stroke)
+            }
+            IconKind.Devices -> {
+                canvas.drawRoundRect(RectF(cx - 24f, cy - 18f, cx + 12f, cy + 16f), 6f, 6f, stroke)
+                canvas.drawRoundRect(RectF(cx + 5f, cy - 5f, cx + 26f, cy + 22f), 5f, 5f, stroke)
+            }
+            IconKind.Trial -> {
+                canvas.drawLine(cx - 10f, cy - 24f, cx - 10f, cy + 3f, stroke)
+                canvas.drawLine(cx + 10f, cy - 24f, cx + 10f, cy + 3f, stroke)
+                canvas.drawArc(RectF(cx - 22f, cy - 2f, cx + 22f, cy + 34f), 0f, 180f, false, stroke)
+                canvas.drawCircle(cx, cy + 11f, 4f, fill)
+            }
+        }
+    }
+
+    private fun drawBadge(
+        canvas: Canvas,
+        left: Float,
+        top: Float,
+        text: String,
+        bgColor: Int,
+        textColor: Int
+    ) {
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = 38f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            isSubpixelText = true
+        }
+        val width = textPaint.measureText(text).coerceAtLeast(118f) + 84f
+        val height = 70f
+        val rect = RectF(left, top, left + width, top + height)
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor }
+        canvas.drawRoundRect(rect, height / 2f, height / 2f, bgPaint)
+        canvas.drawText(text, rect.centerX(), rect.centerY() + 14f, textPaint)
+    }
+
+    private fun labelPaint(align: Paint.Align): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = COLOR_TEXT_DIM
+        textSize = 36f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        textAlign = align
+        isSubpixelText = true
+    }
+
+    private fun valuePaint(align: Paint.Align, size: Float): Paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = COLOR_TEXT_WHITE
+        textSize = size
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        textAlign = align
+        isSubpixelText = true
     }
 
     private fun formatCount(count: String): String {
@@ -268,6 +430,6 @@ object ResultImageRenderer {
         while (end > 0 && paint.measureText(text.substring(0, end) + "…") > maxWidth) {
             end--
         }
-        return text.substring(0, end) + "…"
+        return if (end <= 0) "…" else text.substring(0, end) + "…"
     }
 }
