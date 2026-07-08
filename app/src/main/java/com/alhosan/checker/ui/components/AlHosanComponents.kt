@@ -318,7 +318,8 @@ fun CapsuleStacked(
 fun ResultPrimaryInfoStacked(
     items: List<CapsuleItem>,
     modifier: Modifier = Modifier,
-    iconAtRight: Boolean = false
+    iconAtRight: Boolean = false,
+    centerContent: Boolean = false
 ) {
     CapsuleContainer(modifier = modifier) {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -340,8 +341,8 @@ fun ResultPrimaryInfoStacked(
 
                             Row(
                                 modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(start = 44.dp),
+                                    .align(if (centerContent) Alignment.Center else Alignment.CenterEnd)
+                                    .then(if (centerContent) Modifier else Modifier.padding(start = 44.dp)),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -350,7 +351,7 @@ fun ResultPrimaryInfoStacked(
                                         text = item.label,
                                         color = TextDim,
                                         fontSize = 13.sp,
-                                        textAlign = TextAlign.Right
+                                        textAlign = if (centerContent) TextAlign.Center else TextAlign.Right
                                     )
                                     Icon(
                                         imageVector = item.icon,
@@ -369,7 +370,7 @@ fun ResultPrimaryInfoStacked(
                                         text = item.label,
                                         color = TextDim,
                                         fontSize = 13.sp,
-                                        textAlign = TextAlign.Right
+                                        textAlign = if (centerContent) TextAlign.Center else TextAlign.Right
                                     )
                                 }
                             }
@@ -381,11 +382,11 @@ fun ResultPrimaryInfoStacked(
                             text = item.value,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 44.dp),
+                                .then(if (centerContent) Modifier else Modifier.padding(start = 44.dp)),
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 14.sp,
-                            textAlign = TextAlign.Right,
+                            textAlign = if (centerContent) TextAlign.Center else TextAlign.Right,
                             lineHeight = 19.sp
                         )
                     }
