@@ -970,22 +970,24 @@ fun ShinyText(
     text: String,
     modifier: Modifier = Modifier,
     fontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
-    fontWeight: FontWeight = FontWeight.ExtraBold
+    fontWeight: FontWeight = FontWeight.ExtraBold,
+    rtl: Boolean = false,
+    durationMs: Int = 2200
 ) {
     val transition = rememberInfiniteTransition(label = "shiny")
     val progress by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(2200, easing = LinearEasing),
+            animation = tween(durationMs, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "shinyProgress"
     )
 
-    // The brush sweeps from -1..2 (off-screen left to off-screen right) so the
-    // bright highlight is only visible while passing through the text.
-    val sweep = progress * 3f - 1f
+    // The brush sweeps across the text. Arabic should shimmer right-to-left;
+    // English should shimmer left-to-right.
+    val sweep = if (rtl) 2f - progress * 3f else progress * 3f - 1f
     val colors = listOf(
         Gold,                       // dim gold
         GoldLight,                  // bright gold
