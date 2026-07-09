@@ -469,51 +469,97 @@ private fun ResultCaptureContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Left/opposite side: result → title → trial icon, so visually
-                // from the right it reads icon → title → result.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = if (subscription.isTrial) lang.yes else lang.no,
-                        color = Color.White,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        text = lang.lTrial,
-                        color = Color(0xFFA0A0A0),
-                        fontSize = 13.sp
-                    )
-                    Icon(
-                        imageVector = Icons.Default.Science,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+                if (iconAtRight) {
+                    // Arabic: left group is arranged so the visual start from the
+                    // right is icon → title → result.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (subscription.isTrial) lang.yes else lang.no,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = lang.lTrial,
+                            color = Color(0xFFA0A0A0),
+                            fontSize = 13.sp
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Science,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
 
-                // Right side: status icon → title → result (visually from right).
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    StatusBadge(
-                        isActive = subscription.isActive,
-                        text = if (subscription.isActive) lang.on else lang.off
-                    )
-                    Text(
-                        text = lang.lStatus,
-                        color = Color(0xFFA0A0A0),
-                        fontSize = 13.sp
-                    )
-                    Icon(
-                        imageVector = Icons.Default.SignalCellularAlt,
-                        contentDescription = null,
-                        tint = Gold,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StatusBadge(
+                            isActive = subscription.isActive,
+                            text = if (subscription.isActive) lang.on else lang.off
+                        )
+                        Text(
+                            text = lang.lStatus,
+                            color = Color(0xFFA0A0A0),
+                            fontSize = 13.sp
+                        )
+                        Icon(
+                            imageVector = Icons.Default.SignalCellularAlt,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else {
+                    // English: normal LTR direction — icon → title → result.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SignalCellularAlt,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = lang.lStatus,
+                            color = Color(0xFFA0A0A0),
+                            fontSize = 13.sp
+                        )
+                        StatusBadge(
+                            isActive = subscription.isActive,
+                            text = if (subscription.isActive) lang.on else lang.off
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Science,
+                            contentDescription = null,
+                            tint = Gold,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = lang.lTrial,
+                            color = Color(0xFFA0A0A0),
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = if (subscription.isTrial) lang.yes else lang.no,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
         }
@@ -539,15 +585,19 @@ private fun ResultCaptureContent(
     }
 
     val contentCounts: @Composable () -> Unit = {
-        ContentCountDisplay(
-            liveCount = subscription.liveCount,
-            movieCount = subscription.movieCount,
-            seriesCount = subscription.seriesCount,
-            channelsLabel = lang.lChannels,
-            moviesLabel = lang.lMovies,
-            seriesLabel = lang.lSeries,
-            isLoading = isCounting
-        )
+        CompositionLocalProvider(
+            LocalLayoutDirection provides if (iconAtRight) LayoutDirection.Rtl else LayoutDirection.Ltr
+        ) {
+            ContentCountDisplay(
+                liveCount = subscription.liveCount,
+                movieCount = subscription.movieCount,
+                seriesCount = subscription.seriesCount,
+                channelsLabel = lang.lChannels,
+                moviesLabel = lang.lMovies,
+                seriesLabel = lang.lSeries,
+                isLoading = isCounting
+            )
+        }
     }
 
     Column(

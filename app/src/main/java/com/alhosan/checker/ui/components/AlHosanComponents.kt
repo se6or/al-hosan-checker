@@ -309,10 +309,8 @@ fun CapsuleStacked(
 
 /**
  * Result primary-info capsule.
- * Absolute layout requested by the user:
- * - Copy icon on the physical LEFT of each title row.
- * - Icon + bilingual/fixed label on the physical RIGHT.
- * - Value below the title, aligned to the physical RIGHT.
+ * RTL (Arabic): copy on physical left, label/icon/value on right.
+ * LTR (English): label/icon/value on left, copy on physical right.
  */
 @Composable
 fun ResultPrimaryInfoStacked(
@@ -335,14 +333,28 @@ fun ResultPrimaryInfoStacked(
                             if (item.onCopy != null) {
                                 CopyButton(
                                     onClick = item.onCopy,
-                                    modifier = Modifier.align(Alignment.CenterStart)
+                                    modifier = Modifier.align(
+                                        if (iconAtRight) Alignment.CenterStart else Alignment.CenterEnd
+                                    )
                                 )
                             }
 
                             Row(
                                 modifier = Modifier
-                                    .align(if (centerContent) Alignment.Center else Alignment.CenterEnd)
-                                    .then(if (centerContent) Modifier else Modifier.padding(start = 44.dp)),
+                                    .align(
+                                        when {
+                                            centerContent -> Alignment.Center
+                                            iconAtRight -> Alignment.CenterEnd
+                                            else -> Alignment.CenterStart
+                                        }
+                                    )
+                                    .then(
+                                        when {
+                                            centerContent -> Modifier
+                                            iconAtRight -> Modifier.padding(start = 44.dp)
+                                            else -> Modifier.padding(end = 44.dp)
+                                        }
+                                    ),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -370,7 +382,7 @@ fun ResultPrimaryInfoStacked(
                                         text = item.label,
                                         color = TextDim,
                                         fontSize = 13.sp,
-                                        textAlign = if (centerContent) TextAlign.Center else TextAlign.Right
+                                        textAlign = if (centerContent) TextAlign.Center else TextAlign.Left
                                     )
                                 }
                             }
@@ -382,11 +394,21 @@ fun ResultPrimaryInfoStacked(
                             text = item.value,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (centerContent) Modifier else Modifier.padding(start = 44.dp)),
+                                .then(
+                                    when {
+                                        centerContent -> Modifier
+                                        iconAtRight -> Modifier.padding(start = 44.dp)
+                                        else -> Modifier.padding(end = 44.dp)
+                                    }
+                                ),
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 14.sp,
-                            textAlign = if (centerContent) TextAlign.Center else TextAlign.Right,
+                            textAlign = when {
+                                centerContent -> TextAlign.Center
+                                iconAtRight -> TextAlign.Right
+                                else -> TextAlign.Left
+                            },
                             lineHeight = 19.sp
                         )
                     }
@@ -402,10 +424,8 @@ fun ResultPrimaryInfoStacked(
 
 /**
  * Result side-by-side capsule.
- * Absolute layout requested by the user:
- * - Icon + label on the physical RIGHT.
- * - Value/result on the physical LEFT, opposite the label.
- * - No copy buttons here.
+ * RTL (Arabic): value left, label/icon right.
+ * LTR (English): label/icon left, value right.
  */
 @Composable
 fun ResultSideBySideStacked(
@@ -427,48 +447,30 @@ fun ResultSideBySideStacked(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text(
-                            text = item.value,
-                            modifier = Modifier.weight(1f),
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Left,
-                            maxLines = 2,
-                            lineHeight = 19.sp
-                        )
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (iconAtRight) {
-                                Text(
-                                    text = item.label,
-                                    color = TextDim,
-                                    fontSize = 13.sp,
-                                    textAlign = TextAlign.Right
-                                )
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = null,
-                                    tint = Gold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = null,
-                                    tint = Gold,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text(
-                                    text = item.label,
-                                    color = TextDim,
-                                    fontSize = 13.sp,
-                                    textAlign = TextAlign.Right
-                                )
-                            }
+                        if (iconAtRight) {
+                            Text(
+                                text = item.value,
+                                modifier = Modifier.weight(1f),
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Left,
+                                maxLines = 2,
+                                lineHeight = 19.sp
+                            )
+                            ResultLabelWithIcon(item = item, iconAtRight = true)
+                        } else {
+                            ResultLabelWithIcon(item = item, iconAtRight = false)
+                            Text(
+                                text = item.value,
+                                modifier = Modifier.weight(1f),
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Right,
+                                maxLines = 2,
+                                lineHeight = 19.sp
+                            )
                         }
                     }
 
@@ -477,6 +479,45 @@ fun ResultSideBySideStacked(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ResultLabelWithIcon(
+    item: CapsuleItem,
+    iconAtRight: Boolean
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (iconAtRight) {
+            Text(
+                text = item.label,
+                color = TextDim,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Right
+            )
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = Gold,
+                modifier = Modifier.size(16.dp)
+            )
+        } else {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = null,
+                tint = Gold,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = item.label,
+                color = TextDim,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Left
+            )
         }
     }
 }
