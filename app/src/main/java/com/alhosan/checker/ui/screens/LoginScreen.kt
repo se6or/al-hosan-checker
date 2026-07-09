@@ -7,13 +7,19 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -50,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -228,7 +235,7 @@ fun LoginScreen(
                                     loginInitiatedCheck = true
                                     viewModel.checkSubscription()
                                 },
-                                isLoading = isChecking,
+                                isLoading = false,
                                 enabled = !isChecking
                             )
                         }
@@ -275,7 +282,7 @@ fun LoginScreen(
  * Fullscreen overlay shown while a subscription check is running.
  * - Semi-transparent black background with a blur-like darkening
  * - Small horse logo centered
- * - Shiny-text "الفحص جارٍ..." with animated gold gradient sweep
+ * - Shiny-text "جارِ الفحص" with animated gold gradient sweep
  */
 @Composable
 private fun CheckingOverlay(lang: AppLang) {
@@ -287,24 +294,68 @@ private fun CheckingOverlay(lang: AppLang) {
     ) {
         StaggeredColumn(perItemDelayMs = 70) {
             Item {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_alhosan_logo),
-                    contentDescription = null,
-                    modifier = Modifier.size(96.dp),
-                    contentScale = ContentScale.Fit
+                ShinyLogo(
+                    rtl = lang == AppLang.AR,
+                    modifier = Modifier.size(96.dp)
                 )
             }
             Item {
                 Spacer(modifier = Modifier.height(20.dp))
                 ShinyText(
-                    text = if (lang == AppLang.AR) "الفحص جارٍ..." else "Checking...",
+                    text = if (lang == AppLang.AR) "جارِ الفحص" else "Checking...",
                     fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
+                    rtl = lang == AppLang.AR,
+                    durationMs = 1800
                 )
             }
         }
     }
 }
+
+@Composable
+private fun ShinyLogo(
+    rtl: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "logoShine")
+    val progress by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "logoShineProgress"
+    )
+    val sweep = if (rtl) 1.35f - progress * 1.9f else progress * 1.9f - 0.35f
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_alhosan_logo),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val bandCenter = size.width * sweep
+            drawRect(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Gold.copy(alpha = 0.10f),
+                        Color.White.copy(alpha = 0.22f),
+                        Gold.copy(alpha = 0.10f),
+                        Color.Transparent
+                    ),
+                    start = Offset(bandCenter - size.width * 0.35f, 0f),
+                    end = Offset(bandCenter + size.width * 0.35f, size.height)
+                )
+            )
+        }
+    }
+}
+
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
