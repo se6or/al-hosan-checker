@@ -29,11 +29,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -41,6 +45,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.ui.screens.HistoryScreen
 import com.alhosan.checker.ui.screens.LoginScreen
 import com.alhosan.checker.ui.screens.ResultScreen
@@ -91,6 +96,8 @@ class MainActivity : ComponentActivity() {
 fun AlHosanApp() {
     val navController = rememberNavController()
     val viewModel: CheckerViewModel = viewModel()
+    val lang by viewModel.lang.collectAsState()
+    val appDirection = if (lang == AppLang.AR) LayoutDirection.Rtl else LayoutDirection.Ltr
     val transitionScope = rememberCoroutineScope()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -103,8 +110,9 @@ fun AlHosanApp() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Black)) {
-        // Header is outside NavHost so the back button stays fixed and does not
+    CompositionLocalProvider(LocalLayoutDirection provides appDirection) {
+        Column(modifier = Modifier.fillMaxSize().background(Black)) {
+            // Header is outside NavHost so the back button stays fixed and does not
         // participate in the screen open/close staggered transition.
         if (currentRoute != null && currentRoute != "splash") {
             ScreenHeader(
@@ -169,6 +177,7 @@ fun AlHosanApp() {
             }
         }
     }
+}
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
