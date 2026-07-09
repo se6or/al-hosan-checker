@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,14 +21,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -36,6 +40,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,8 +55,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -393,49 +400,69 @@ private fun TabsRow(
     lang: AppLang,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(Color.Black, RoundedCornerShape(18.dp))
-            .border(1.dp, BorderGold, RoundedCornerShape(18.dp))
-            .padding(6.dp),
-        horizontalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f).height(44.dp)
-                .then(
-                    if (selectedMode == CheckMode.XTREAM)
-                        Modifier.clip(RoundedCornerShape(14.dp)).background(GoldGradientBrush)
-                    else
-                        Modifier.clip(RoundedCornerShape(14.dp)).background(Color.Transparent)
-                )
-                .clickable { onModeChange(CheckMode.XTREAM) },
-            contentAlignment = Alignment.Center
+    // Keep a fixed physical order to match the UI: M3U on the left,
+    // Xtream on the right. The gold selector itself animates smoothly instead
+    // of jumping between tabs.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        BoxWithConstraints(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(Color.Black, RoundedCornerShape(18.dp))
+                .border(1.dp, BorderGold, RoundedCornerShape(18.dp))
+                .padding(6.dp)
         ) {
-            Text(
-                text = "Xtream",
-                color = if (selectedMode == CheckMode.XTREAM) Color.Black else Color(0xFFA0A0A0),
-                fontWeight = FontWeight.Bold, fontSize = 15.sp
+            val tabWidth = maxWidth / 2f
+            val selectorOffset by animateDpAsState(
+                targetValue = if (selectedMode == CheckMode.M3U) 0.dp else tabWidth,
+                animationSpec = tween(durationMillis = 280),
+                label = "modeSelectorOffset"
             )
-        }
-        Box(
-            modifier = Modifier
-                .weight(1f).height(44.dp)
-                .then(
-                    if (selectedMode == CheckMode.M3U)
-                        Modifier.clip(RoundedCornerShape(14.dp)).background(GoldGradientBrush)
-                    else
-                        Modifier.clip(RoundedCornerShape(14.dp)).background(Color.Transparent)
-                )
-                .clickable { onModeChange(CheckMode.M3U) },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "M3U Link",
-                color = if (selectedMode == CheckMode.M3U) Color.Black else Color(0xFFA0A0A0),
-                fontWeight = FontWeight.Bold, fontSize = 15.sp
+
+            Box(
+                modifier = Modifier
+                    .offset(x = selectorOffset)
+                    .width(tabWidth)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(GoldGradientBrush)
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(0.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onModeChange(CheckMode.M3U) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "M3U Link",
+                        color = if (selectedMode == CheckMode.M3U) Color.Black else Color(0xFFA0A0A0),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable { onModeChange(CheckMode.XTREAM) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Xtream",
+                        color = if (selectedMode == CheckMode.XTREAM) Color.Black else Color(0xFFA0A0A0),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+            }
         }
     }
 }
