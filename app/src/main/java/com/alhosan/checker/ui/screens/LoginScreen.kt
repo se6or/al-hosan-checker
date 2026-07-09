@@ -80,7 +80,6 @@ import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.GoldGradientBrush
 import com.alhosan.checker.viewmodel.CheckerViewModel
 import com.alhosan.checker.ui.i18n.*
-import kotlin.math.abs
 
 /**
  * Login/Check screen.
@@ -162,16 +161,22 @@ fun LoginScreen(
                     var dragTotal = 0f
                     detectHorizontalDragGestures(
                         onDragStart = { dragTotal = 0f },
-                        onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount },
-                        onDragEnd = {
-                            if (abs(dragTotal) > 80f) {
-                                // User requested: left → right opens M3U Link,
-                                // right → left returns to Xtream.
-                                if (dragTotal > 0f) viewModel.setCheckMode(CheckMode.M3U)
-                                else viewModel.setCheckMode(CheckMode.XTREAM)
+                        onHorizontalDrag = { _, dragAmount ->
+                            dragTotal += dragAmount
+                            // Switch immediately while the finger is still moving
+                            // once the swipe distance is enough; don't wait for release.
+                            when {
+                                dragTotal > 48f && checkMode != CheckMode.M3U -> {
+                                    viewModel.setCheckMode(CheckMode.M3U)
+                                    dragTotal = 0f
+                                }
+                                dragTotal < -48f && checkMode != CheckMode.XTREAM -> {
+                                    viewModel.setCheckMode(CheckMode.XTREAM)
+                                    dragTotal = 0f
+                                }
                             }
-                            dragTotal = 0f
                         },
+                        onDragEnd = { dragTotal = 0f },
                         onDragCancel = { dragTotal = 0f }
                     )
                 }
@@ -343,14 +348,21 @@ private fun SwipeableModeInputs(
             .pointerInput(checkMode) {
                 detectHorizontalDragGestures(
                     onDragStart = { dragTotal = 0f },
-                    onHorizontalDrag = { _, dragAmount -> dragTotal += dragAmount },
-                    onDragEnd = {
-                        if (abs(dragTotal) > 80f) {
-                            if (dragTotal > 0f) onModeChange(CheckMode.M3U)
-                            else onModeChange(CheckMode.XTREAM)
+                    onHorizontalDrag = { _, dragAmount ->
+                        dragTotal += dragAmount
+                        // Immediate in-card switching while dragging.
+                        when {
+                            dragTotal > 48f && checkMode != CheckMode.M3U -> {
+                                onModeChange(CheckMode.M3U)
+                                dragTotal = 0f
+                            }
+                            dragTotal < -48f && checkMode != CheckMode.XTREAM -> {
+                                onModeChange(CheckMode.XTREAM)
+                                dragTotal = 0f
+                            }
                         }
-                        dragTotal = 0f
                     },
+                    onDragEnd = { dragTotal = 0f },
                     onDragCancel = { dragTotal = 0f }
                 )
             }
