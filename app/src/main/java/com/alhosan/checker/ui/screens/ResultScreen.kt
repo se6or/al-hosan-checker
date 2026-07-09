@@ -341,8 +341,13 @@ private suspend fun captureResultContentBitmap(
     val captureWidth = (screenWidth - (32f * density).toInt()).coerceAtLeast(1)
     val iconAtRight = lang == AppLang.AR
 
+    val offscreenLeft = -captureWidth * 4
     val composeView = ComposeView(activity).apply {
         setBackgroundColor(android.graphics.Color.BLACK)
+        // Keep this temporary capture view completely outside the visible
+        // window. The previous code manually laid it out at (0, 0), so users
+        // could see the generated image flash over the app for a split second.
+        translationX = offscreenLeft.toFloat()
         setContent {
             AlHosanTheme {
                 ResultCaptureContent(
@@ -360,7 +365,7 @@ private suspend fun captureResultContentBitmap(
     }
 
     val params = FrameLayout.LayoutParams(captureWidth, FrameLayout.LayoutParams.WRAP_CONTENT).apply {
-        leftMargin = -captureWidth * 2
+        leftMargin = offscreenLeft
         topMargin = 0
     }
 
@@ -374,7 +379,7 @@ private suspend fun captureResultContentBitmap(
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         )
         val measuredHeight = composeView.measuredHeight.coerceAtLeast(1)
-        composeView.layout(0, 0, captureWidth, measuredHeight)
+        composeView.layout(offscreenLeft, 0, offscreenLeft + captureWidth, measuredHeight)
 
         Bitmap.createBitmap(captureWidth, measuredHeight, Bitmap.Config.ARGB_8888).also { bitmap ->
             val canvas = Canvas(bitmap)
