@@ -203,7 +203,8 @@ fun ScreenHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Leading slot: back button fades/slides independently from screen transition.
+        // Back-language slot: on inner screens it shows Back; on the main
+        // screen it shows Language in the exact same physical position.
         Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
             androidx.compose.animation.AnimatedVisibility(
                 visible = showBack,
@@ -219,15 +220,11 @@ fun ScreenHeader(
                     )
                 }
             }
-        }
 
-        // Trailing slot: language toggle only on the main login screen, with
-        // its own smooth appearance/disappearance.
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
             androidx.compose.animation.AnimatedVisibility(
-                visible = showLang,
-                enter = slideInHorizontally(animationSpec = tween(220)) { it / 2 } + fadeIn(tween(180)),
-                exit = slideOutHorizontally(animationSpec = tween(180)) { it / 2 } + fadeOut(tween(140))
+                visible = showLang && !showBack,
+                enter = slideInHorizontally(animationSpec = tween(220)) { -it / 2 } + fadeIn(tween(180)),
+                exit = slideOutHorizontally(animationSpec = tween(180)) { -it / 2 } + fadeOut(tween(140))
             ) {
                 CircleHeaderButton(onClick = onLangToggle) {
                     Icon(
@@ -239,6 +236,9 @@ fun ScreenHeader(
                 }
             }
         }
+
+        // Opposite side stays empty so the header keeps balanced spacing.
+        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) { }
     }
 }
 
