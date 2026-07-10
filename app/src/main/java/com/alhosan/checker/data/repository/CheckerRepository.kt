@@ -4,6 +4,10 @@ import android.util.Log
 import com.alhosan.checker.data.model.CheckerInput
 import com.alhosan.checker.data.model.Subscription
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -12,6 +16,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.ConnectionSpec
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.net.URI
@@ -59,12 +64,17 @@ import javax.net.ssl.X509TrustManager
 class CheckerRepository {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
+        .connectTimeout(8, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS) // large IPTV panels can return multi-MB JSON
         .writeTimeout(10, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
+        // Allow live + movies + series counts to run truly in parallel.
+        .dispatcher(Dispatcher().apply {
+            maxRequests = 16
+            maxRequestsPerHost = 6
+        })
         .connectionSpecs(
             listOf(
                 ConnectionSpec.MODERN_TLS,
@@ -368,13 +378,19 @@ class CheckerRepository {
     }
 
     /**
-     * Fetch content counts (live, VOD, series) separately.
-     * Same error-handling improvements as checkSubscription.
+     * Fetch content counts (live, VOD, series) in parallel for maximum speed.
+     *
+     * [onPartial] is invoked on the calling dispatcher every time one of the
+     * three requests finishes so the UI can paint real numbers progressively
+     * instead of waiting for the slowest category. Each partial triple always
+     * contains the latest known value for every field (pending fields keep
+     * the previous value / "…" marker).
      */
     suspend fun fetchContentCounts(
         host: String,
         username: String,
-        password: String
+        password: String,
+        onPartial: (suspend (live: String, movie: String, series: String) -> Unit)? = null
     ): Triple<String, String, String> = withContext(Dispatchers.IO) {
         try {
             val h = host.trimEnd('/')
@@ -384,11 +400,31 @@ class CheckerRepository {
             val vodUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_vod_streams"
             val seriesUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_series"
 
-            val liveCount = fetchArrayCount(liveUrl)
-            val vodCount = fetchArrayCount(vodUrl)
-            val seriesCount = fetchArrayCount(seriesUrl)
+            // Run the three category requests fully in parallel and surface
+            // each real number the moment it arrives (progressive UI).
+            coroutineScope {
+                val counts = arrayOf("…", "…", "…")
+                val mutex = Mutex()
 
-            Triple(liveCount, vodCount, seriesCount)
+                suspend fun publish(index: Int, value: String): String {
+                    mutex.withLock {
+                        counts[index] = value
+                    }
+                    // Snapshot after the lock so concurrent finishers don't
+                    // race when reading sibling fields for the partial update.
+                    val snapshot = mutex.withLock {
+                        Triple(counts[0], counts[1], counts[2])
+                    }
+                    onPartial?.invoke(snapshot.first, snapshot.second, snapshot.third)
+                    return value
+                }
+
+                val liveJob = async { publish(0, fetchArrayCount(liveUrl)) }
+                val vodJob = async { publish(1, fetchArrayCount(vodUrl)) }
+                val seriesJob = async { publish(2, fetchArrayCount(seriesUrl)) }
+
+                Triple(liveJob.await(), vodJob.await(), seriesJob.await())
+            }
         } catch (e: Exception) {
             Triple("0", "0", "0")
         }
@@ -400,6 +436,8 @@ class CheckerRepository {
                 .url(url)
                 .addIptvHeaders(accept = "application/json, text/plain, */*")
                 .build()
+            // Dedicated count client has shorter connect timeout + bigger
+            // read timeout so large panels still finish, but dead hosts fail fast.
             executeJsonArrayCountWithCompatibility(request).toString()
         } catch (e: Exception) {
             "0"

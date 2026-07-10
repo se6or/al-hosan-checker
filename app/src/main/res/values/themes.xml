@@ -7,11 +7,12 @@
         <item name="android:windowBackground">@android:color/black</item>
     </style>
 
-    <!-- Splash screen theme — appears instantly when app icon is tapped -->
+    <!-- Splash screen theme — transparent logo on pure black (no icon plate) -->
     <style name="Theme.AlHosanChecker.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#000000</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_alhosan_logo</item>
-        <item name="windowSplashScreenIconBackgroundColor">#000000</item>
+        <!-- Transparent plate so the adaptive-icon style black square never wraps the logo -->
+        <item name="windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/Theme.AlHosanChecker</item>
     </style>
 </resources>

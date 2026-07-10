@@ -12,11 +12,13 @@ import com.alhosan.checker.data.model.ProgressPhase
 import com.alhosan.checker.data.model.Subscription
 import com.alhosan.checker.data.repository.CheckerRepository
 import com.alhosan.checker.ui.i18n.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 /**
@@ -213,15 +215,16 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                             // real Xtream credentials — including links entered
                             // through M3U mode. Playlist-only M3U results already
                             // carry their parsed counts and use password "--".
-                            if (subscription.host.startsWith("http") &&
-                                subscription.username.isNotBlank() &&
-                                subscription.username != "M3U Link" &&
-                                subscription.password.isNotBlank() &&
-                                subscription.password != "--" &&
-                                subscription.liveCount == "0" &&
-                                subscription.movieCount == "0" &&
-                                subscription.seriesCount == "0"
-                            ) {
+                            val needsContentCount =
+                                subscription.host.startsWith("http") &&
+                                    subscription.username.isNotBlank() &&
+                                    subscription.username != "M3U Link" &&
+                                    subscription.password.isNotBlank() &&
+                                    subscription.password != "--" &&
+                                    subscription.liveCount == "0" &&
+                                    subscription.movieCount == "0" &&
+                                    subscription.seriesCount == "0"
+                            if (needsContentCount) {
                                 fetchContentCounts(subscription)
                             }
                         }
@@ -244,30 +247,91 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Fetch content counts in background (matches HTML reference's fetchContentCounts)
+     * Fetch content counts in the background with progressive UI updates.
+     *
+     * Each category (live / movies / series) is requested in parallel and
+     * applied to the result as soon as it returns, so the user sees real
+     * numbers appear one-by-one instead of a looping fake counter.
+     * When all three finish, a toast confirms the content was counted.
      */
     private fun fetchContentCounts(subscription: Subscription) {
         viewModelScope.launch {
             _isCounting.value = true
+
+            // Mark every field as pending so the UI shows gold dots, not "0"
+            // and not a looping fake counter.
+            applyContentCounts("…", "…", "…", force = true)
+
             try {
                 val (live, movie, series) = repository.fetchContentCounts(
-                    subscription.host,
-                    subscription.username,
-                    subscription.password
+                    host = subscription.host,
+                    username = subscription.username,
+                    password = subscription.password,
+                    onPartial = { partialLive, partialMovie, partialSeries ->
+                        // Always hop to Main before touching UI state so Compose
+                        // collectors see consistent progressive updates.
+                        withContext(Dispatchers.Main.immediate) {
+                            applyContentCounts(partialLive, partialMovie, partialSeries)
+                        }
+                    }
                 )
-                val currentSub = (_state.value as? CheckerState.Success)?.subscription
-                if (currentSub != null) {
-                    _state.value = CheckerState.Success(
-                        currentSub.copy(
-                            liveCount = live,
-                            movieCount = movie,
-                            seriesCount = series
-                        )
+                applyContentCounts(live, movie, series, force = true)
+                showToast(_lang.value.tContentCounted)
+            } catch (_: Exception) {
+                // Keep whatever partial values we already painted; fall back
+                // remaining pending markers to "0" so the UI never stays stuck.
+                val current = (_state.value as? CheckerState.Success)?.subscription
+                if (current != null) {
+                    applyContentCounts(
+                        live = if (isPendingCount(current.liveCount)) "0" else current.liveCount,
+                        movie = if (isPendingCount(current.movieCount)) "0" else current.movieCount,
+                        series = if (isPendingCount(current.seriesCount)) "0" else current.seriesCount,
+                        force = true
                     )
                 }
-            } catch (_: Exception) { }
+            }
             _isCounting.value = false
         }
+    }
+
+    /**
+     * Patch the live/movie/series fields of the current Success subscription.
+     *
+     * Progressive partial updates must never "downgrade" a real number back to
+     * a pending marker if an older snapshot arrives slightly out of order.
+     * Pass [force] = true for the initial pending state and the final result.
+     */
+    private fun applyContentCounts(
+        live: String,
+        movie: String,
+        series: String,
+        force: Boolean = false
+    ) {
+        val currentSub = (_state.value as? CheckerState.Success)?.subscription ?: return
+        _state.value = CheckerState.Success(
+            currentSub.copy(
+                liveCount = mergeCount(currentSub.liveCount, live, force),
+                movieCount = mergeCount(currentSub.movieCount, movie, force),
+                seriesCount = mergeCount(currentSub.seriesCount, series, force)
+            )
+        )
+    }
+
+    private fun isPendingCount(value: String): Boolean {
+        val v = value.trim()
+        return v.isEmpty() || v == "…" || v == "..." || v == "-" || v == "--"
+    }
+
+    private fun isRealCount(value: String): Boolean {
+        val v = value.trim()
+        return v.isNotEmpty() && v.all { it.isDigit() }
+    }
+
+    private fun mergeCount(current: String, incoming: String, force: Boolean): String {
+        if (force) return incoming
+        // Never replace a finished real count with a still-pending marker.
+        if (isPendingCount(incoming) && isRealCount(current)) return current
+        return incoming
     }
 
     fun resetState() {
