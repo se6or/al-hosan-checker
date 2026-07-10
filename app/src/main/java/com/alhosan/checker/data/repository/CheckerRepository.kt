@@ -6,8 +6,6 @@ import com.alhosan.checker.data.model.Subscription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -388,17 +386,21 @@ class CheckerRepository {
     /**
      * Fetch content counts (live, VOD, series) in parallel for maximum speed.
      *
-     * [onPartial] is invoked on the calling dispatcher every time one of the
-     * three requests finishes so the UI can paint real numbers progressively
-     * instead of waiting for the slowest category. Each partial triple always
-     * contains the latest known value for every field (pending fields keep
-     * the previous value / "…" marker).
+     * [onField] is invoked on the calling dispatcher the moment each
+     * individual category request finishes — with the field name and its
+     * real number. This is the KEY to making the three counters truly
+     * independent: each field's real number is applied to the UI the
+     * instant it arrives, without waiting for or snapshotting sibling
+     * fields. Channels, movies, and series each animate on their own.
+     *
+     * Empty string = pending (UI runs the live counter). A real "0" is
+     * only ever set by a successful server response.
      */
     suspend fun fetchContentCounts(
         host: String,
         username: String,
         password: String,
-        onPartial: (suspend (live: String, movie: String, series: String) -> Unit)? = null
+        onField: (suspend (field: ContentField, value: String) -> Unit)? = null
     ): Triple<String, String, String> = withContext(Dispatchers.IO) {
         try {
             val h = host.trimEnd('/')
@@ -408,30 +410,25 @@ class CheckerRepository {
             val vodUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_vod_streams"
             val seriesUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_series"
 
-            // Run the three category requests fully in parallel and surface
-            // each real number the moment it arrives (progressive UI).
-            // Empty string = pending (UI runs the live counter). A real "0"
-            // is only ever set by a successful server response.
+            // Run the three category requests fully in parallel. Each one
+            // publishes its real number the instant it arrives — no mutex,
+            // no snapshot, no waiting for siblings. Truly independent.
             coroutineScope {
-                val counts = arrayOf("", "", "")
-                val mutex = Mutex()
-
-                suspend fun publish(index: Int, value: String): String {
-                    mutex.withLock {
-                        counts[index] = value
-                    }
-                    // Snapshot after the lock so concurrent finishers don't
-                    // race when reading sibling fields for the partial update.
-                    val snapshot = mutex.withLock {
-                        Triple(counts[0], counts[1], counts[2])
-                    }
-                    onPartial?.invoke(snapshot.first, snapshot.second, snapshot.third)
-                    return value
+                val liveJob = async {
+                    val v = fetchArrayCount(liveUrl)
+                    onField?.invoke(ContentField.LIVE, v)
+                    v
                 }
-
-                val liveJob = async { publish(0, fetchArrayCount(liveUrl)) }
-                val vodJob = async { publish(1, fetchArrayCount(vodUrl)) }
-                val seriesJob = async { publish(2, fetchArrayCount(seriesUrl)) }
+                val vodJob = async {
+                    val v = fetchArrayCount(vodUrl)
+                    onField?.invoke(ContentField.MOVIE, v)
+                    v
+                }
+                val seriesJob = async {
+                    val v = fetchArrayCount(seriesUrl)
+                    onField?.invoke(ContentField.SERIES, v)
+                    v
+                }
 
                 Triple(liveJob.await(), vodJob.await(), seriesJob.await())
             }
@@ -442,6 +439,9 @@ class CheckerRepository {
             Triple("", "", "")
         }
     }
+
+    /** Which content category a partial count belongs to. */
+    enum class ContentField { LIVE, MOVIE, SERIES }
 
     /**
      * Fetch a single category count (live / vod / series).

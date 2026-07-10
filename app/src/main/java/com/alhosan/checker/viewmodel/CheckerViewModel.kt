@@ -269,14 +269,18 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                     host = subscription.host,
                     username = subscription.username,
                     password = subscription.password,
-                    onPartial = { partialLive, partialMovie, partialSeries ->
-                        // Always hop to Main before touching UI state so Compose
-                        // collectors see consistent progressive updates.
+                    onField = { field, value ->
+                        // Each field's real number is applied INDEPENDENTLY the
+                        // instant it arrives — no snapshot, no waiting for
+                        // siblings. Channels / movies / series each animate on
+                        // their own and turn white as soon as their own count
+                        // finishes, regardless of what the others are doing.
                         withContext(Dispatchers.Main.immediate) {
-                            applyContentCounts(partialLive, partialMovie, partialSeries)
+                            applySingleCount(field, value)
                         }
                     }
                 )
+                // Final force-apply in case any onField callbacks were missed.
                 applyContentCounts(live, movie, series, force = true)
                 showToast(_lang.value.tContentCounted)
             } catch (_: Exception) {
@@ -294,6 +298,23 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             }
             _isCounting.value = false
         }
+    }
+
+    /**
+     * Apply a single field's real count. Called the moment that field's
+     * server request finishes — independently of the other two fields.
+     */
+    private fun applySingleCount(field: CheckerRepository.ContentField, value: String) {
+        val currentSub = (_state.value as? CheckerState.Success)?.subscription ?: return
+        val newSub = when (field) {
+            CheckerRepository.ContentField.LIVE ->
+                currentSub.copy(liveCount = mergeCount(currentSub.liveCount, value, force = true))
+            CheckerRepository.ContentField.MOVIE ->
+                currentSub.copy(movieCount = mergeCount(currentSub.movieCount, value, force = true))
+            CheckerRepository.ContentField.SERIES ->
+                currentSub.copy(seriesCount = mergeCount(currentSub.seriesCount, value, force = true))
+        }
+        _state.value = CheckerState.Success(newSub)
     }
 
     /**
