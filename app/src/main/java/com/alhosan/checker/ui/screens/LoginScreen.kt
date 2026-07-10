@@ -55,6 +55,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -189,7 +190,11 @@ fun LoginScreen(
                 }
             }
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (isChecking) Modifier.blur(18.dp) else Modifier)
+        ) {
             // ── Card with tabs + inputs + start-check button ──
             Card(
                 modifier = Modifier
@@ -280,16 +285,35 @@ fun LoginScreen(
 
 /**
  * Fullscreen overlay shown while a subscription check is running.
- * - Semi-transparent black background with a blur-like darkening
- * - Small horse logo centered
- * - Shiny-text "جارِ الفحص" with animated gold gradient sweep
+ * - No black overlay: the screen behind it is blurred from the parent
+ * - Transparent horse logo centered
+ * - Shiny-text "جارِ الفحص..." with animated dots
  */
 @Composable
 private fun CheckingOverlay(lang: AppLang) {
+    val dotsTransition = rememberInfiniteTransition(label = "checkingDots")
+    val dotProgress by dotsTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 3.99f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "checkingDotsProgress"
+    )
+    val dots = ".".repeat(dotProgress.toInt().coerceIn(1, 3))
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC000000)),  // 80% black, simulates blurred backdrop
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         StaggeredColumn(perItemDelayMs = 70) {
@@ -302,7 +326,7 @@ private fun CheckingOverlay(lang: AppLang) {
             Item {
                 Spacer(modifier = Modifier.height(20.dp))
                 ShinyText(
-                    text = if (lang == AppLang.AR) "جارِ الفحص" else "Checking...",
+                    text = if (lang == AppLang.AR) "جارِ الفحص$dots" else "Checking$dots",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.ExtraBold,
                     rtl = lang == AppLang.AR,
