@@ -65,16 +65,16 @@ class CheckerRepository {
 
     companion object {
         // Number of times a single content-count request (live / vod / series)
-        // is retried before falling back to "0". Higher = more resilient to
-        // transient panel failures, at the cost of slightly longer waits.
-        private const val MAX_COUNT_RETRIES = 4
-        private const val COUNT_RETRY_BACKOFF_MS = 350
+        // is retried before falling back to "0". Kept small so the counting
+        // phase stays fast — a single failed category won't hold up the others.
+        private const val MAX_COUNT_RETRIES = 3
+        private const val COUNT_RETRY_BACKOFF_MS = 150
     }
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(45, TimeUnit.SECONDS) // large IPTV panels can return multi-MB JSON
-        .writeTimeout(10, TimeUnit.SECONDS)
+        .connectTimeout(6, TimeUnit.SECONDS)
+        .readTimeout(25, TimeUnit.SECONDS) // large IPTV panels can return multi-MB JSON
+        .writeTimeout(8, TimeUnit.SECONDS)
         .followRedirects(true)
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
