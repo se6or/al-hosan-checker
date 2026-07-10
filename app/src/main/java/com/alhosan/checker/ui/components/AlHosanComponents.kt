@@ -58,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -958,14 +959,18 @@ private fun RowScope.ContentCountItem(
 }
 
 /**
- * Content count number — no dots, sequential count-up.
+ * Content count number — running sequential count-up, no dots.
  *
  * Behavior (per user spec):
- * - No dots / no placeholders ever. While waiting for the server count we
- *   simply show "0" in gold (the starting point of the count-up).
- * - When the real count arrives: animate 0 → exact value sequentially.
- * - Color while counting (isLoading = true OR animation in progress): Gold.
- * - Color when finished (isLoading = false AND animation reached target): White.
+ * - The moment counting starts, the counter immediately begins running
+ *   upward from 0 (random increments) so the user sees a live counting
+ *   process — it never freezes on "0" waiting for the server.
+ * - Each field (channels / movies / series) is independent: when one
+ *   category's real number arrives, that field snaps onto it and animates
+ *   the remaining gap smoothly, while the other fields keep running.
+ * - Color while running or animating: Gold. Color when the whole counting
+ *   pass finished (isLoading = false) AND this field reached its real
+ *   target: White.
  */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
@@ -978,44 +983,54 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         }
     }
 
-    if (numericTarget != null) {
-        // Animate once from 0 → exact server count (sequential, no loops).
-        val animated = remember(numericTarget) {
-            androidx.compose.animation.core.Animatable(0f)
-        }
-        LaunchedEffect(numericTarget) {
-            animated.snapTo(0f)
-            // Longer duration so the user sees a clear sequential count-up.
-            val durationMs = (600 + (numericTarget / 25).coerceAtMost(1400)).coerceAtLeast(600)
-            animated.animateTo(
-                targetValue = numericTarget.toFloat(),
-                animationSpec = tween(durationMs, easing = LinearEasing)
-            )
-        }
-        val reachedTarget = animated.value >= numericTarget - 0.5f
-        val display = if (reachedTarget) {
-            numericTarget
+    // Survives recomposition — carries the live running value across phases.
+    var displayValue by remember { mutableStateOf(0) }
+
+    LaunchedEffect(numericTarget, isLoading) {
+        if (numericTarget != null && numericTarget > 0) {
+            // Real count for this field arrived — smoothly run from the
+            // current displayed value up to the exact server number.
+            val start = displayValue.toFloat()
+            val end = numericTarget.toFloat()
+            val diff = (end - start).coerceAtLeast(0f)
+            if (diff > 0f) {
+                // Duration scales with the gap so big jumps feel deliberate.
+                val durationMs = (800 + diff.toInt() / 20).coerceIn(800, 2500)
+                val startTime = System.currentTimeMillis()
+                while (true) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                    displayValue = (start + diff * progress).toInt()
+                    if (progress >= 1f) break
+                    delay(16)
+                }
+            }
+            displayValue = numericTarget
+        } else if (isLoading) {
+            // Still waiting for the real count — keep the counter running
+            // upward with random increments so the user sees live activity.
+            // Stops the instant a real number arrives (numericTarget > 0).
+            while (true) {
+                displayValue = (displayValue + (1..25).random()).coerceAtMost(999_999)
+                delay(40)
+            }
         } else {
-            animated.value.toInt().coerceIn(0, numericTarget)
+            // Counting finished with no real number (server returned 0 or
+            // failed) — snap to the final value.
+            displayValue = numericTarget ?: 0
         }
-        // Gold while counting (global isLoading or this field still animating),
-        // white only when everything finished AND this field reached its target.
-        val color = if (isLoading || !reachedTarget) Gold else Color.White
-        Text(
-            text = display.toString(),
-            color = color,
-            fontWeight = FontWeight.Black,
-            fontSize = 18.sp
-        )
-    } else {
-        // Non-numeric value (e.g. "--") — just show as-is.
-        Text(
-            text = count.ifBlank { "0" },
-            color = if (isLoading) Gold else Color.White,
-            fontWeight = FontWeight.Black,
-            fontSize = 18.sp
-        )
     }
+
+    val reachedFinal = !isLoading &&
+        numericTarget != null &&
+        displayValue == numericTarget
+    val color = if (reachedFinal) Color.White else Gold
+    Text(
+        text = displayValue.toString(),
+        color = color,
+        fontWeight = FontWeight.Black,
+        fontSize = 18.sp
+    )
 }
 
 /* ════════════════════════════════════════════════════════════════════
