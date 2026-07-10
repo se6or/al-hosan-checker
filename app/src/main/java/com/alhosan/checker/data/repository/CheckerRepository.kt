@@ -410,8 +410,10 @@ class CheckerRepository {
 
             // Run the three category requests fully in parallel and surface
             // each real number the moment it arrives (progressive UI).
+            // Empty string = pending (UI runs the live counter). A real "0"
+            // is only ever set by a successful server response.
             coroutineScope {
-                val counts = arrayOf("0", "0", "0")
+                val counts = arrayOf("", "", "")
                 val mutex = Mutex()
 
                 suspend fun publish(index: Int, value: String): String {
@@ -434,30 +436,34 @@ class CheckerRepository {
                 Triple(liveJob.await(), vodJob.await(), seriesJob.await())
             }
         } catch (e: Exception) {
-            Triple("0", "0", "0")
+            // Catastrophic failure (e.g. cancellation). Return empty (pending)
+            // for all three; the ViewModel's catch block will fall back to
+            // "0" only for fields that never received a real number.
+            Triple("", "", "")
         }
     }
 
     /**
      * Fetch a single category count (live / vod / series).
      *
-     * Retries the request up to MAX_COUNT_RETRIES times with a short back-off
-     * before falling back to "0". This prevents transient transport failures
-     * (SSL resets, momentary timeouts, broken pipes) from producing an
-     * inconsistent "0" count that differs between back-to-back checks of the
-     * same subscription.
+     * Retries the request up to MAX_COUNT_RETRIES times with a short back-off.
+     * On success: returns the real count as a string (may be "0" if the
+     * server genuinely has no items in that category).
+     * On total failure after all retries: returns "" (empty = pending) so the
+     * ViewModel/UI knows the category never received a real number — this
+     * prevents a spurious "0" from overwriting a previously received real
+     * count and restarting the UI counter.
      */
     private fun fetchArrayCount(url: String): String {
         val request = Request.Builder()
             .url(url)
             .addIptvHeaders(accept = "application/json, text/plain, */*")
             .build()
-        var lastCount = 0
         repeat(MAX_COUNT_RETRIES) { attempt ->
             try {
-                lastCount = executeJsonArrayCountWithCompatibility(request)
+                val count = executeJsonArrayCountWithCompatibility(request)
                 // A successful response always wins — don't retry a success.
-                return lastCount.toString()
+                return count.toString()
             } catch (e: Exception) {
                 // Retryable transport failure: wait briefly then try again.
                 if (attempt < MAX_COUNT_RETRIES - 1) {
@@ -469,7 +475,11 @@ class CheckerRepository {
                 }
             }
         }
-        return lastCount.toString()
+        // All retries exhausted — return empty (pending), NOT "0". The
+        // ViewModel's mergeCount will keep any previously received real
+        // number; the catch block in fetchContentCounts will eventually
+        // fall back to "0" only if no real number ever arrived.
+        return ""
     }
 
     /**
