@@ -199,6 +199,12 @@ val AppLang.tExportFail: String get() = when (this) {
     AppLang.EN -> "Failed to export image, try again"
 }
 
+// Content count finished toast
+val AppLang.tContentCounted: String get() = when (this) {
+    AppLang.AR -> "تم حساب عدد المحتوى"
+    AppLang.EN -> "Content count complete"
+}
+
 // Error messages
 val AppLang.tErrTimeout: String get() = when (this) {
     AppLang.AR -> "انتهى وقت الاتصال، السيرفر بطيء أو مغلق"
