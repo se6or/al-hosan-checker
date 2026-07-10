@@ -192,7 +192,7 @@ fun LoginScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (isChecking) Modifier.blur(18.dp) else Modifier)
+                .then(if (isChecking) Modifier.blur(8.dp) else Modifier)
         ) {
             // ── Card with tabs + inputs + start-check button ──
             Card(
@@ -284,24 +284,15 @@ fun LoginScreen(
 
 /**
  * Fullscreen overlay shown while a subscription check is running.
- * - No black overlay: the screen behind it is blurred from the parent
- * - Transparent horse logo centered
- * - Shiny-text "جارِ الفحص..." with animated dots
+ *
+ * - NO black background, NO blur plate. The overlay Box itself is fully
+ *   transparent so the user sees the actual login screen behind the logo.
+ * - Uses the transparent app logo (R.drawable.ic_alhosan_logo — RGBA, no
+ *   opaque plate), NOT the adaptive launcher icon.
+ * - Shiny-text "جارِ الفحص" (no animated dots) sweeps across.
  */
 @Composable
 private fun CheckingOverlay(lang: AppLang) {
-    val dotsTransition = rememberInfiniteTransition(label = "checkingDots")
-    val dotProgress by dotsTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 3.99f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "checkingDotsProgress"
-    )
-    val dots = ".".repeat(dotProgress.toInt().coerceIn(1, 3))
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -325,7 +316,7 @@ private fun CheckingOverlay(lang: AppLang) {
             Item {
                 Spacer(modifier = Modifier.height(20.dp))
                 ShinyText(
-                    text = if (lang == AppLang.AR) "جارِ الفحص$dots" else "Checking$dots",
+                    text = if (lang == AppLang.AR) "جارِ الفحص" else "Checking",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.ExtraBold,
                     rtl = lang == AppLang.AR,
@@ -338,8 +329,9 @@ private fun CheckingOverlay(lang: AppLang) {
 
 /**
  * Transparent app logo (ic_alhosan_logo.png — RGBA, no opaque plate).
- * Shine is drawn with SrcAtop so it only covers the horse pixels and never
- * paints a black/opaque rectangle over the transparent background.
+ * The Canvas has NO background — it only paints the horse pixels from the
+ * transparent PNG, then draws a gold shine with SrcAtop so the shine never
+ * fills the transparent areas with black or any other color.
  */
 @Composable
 private fun ShinyLogo(

@@ -63,6 +63,14 @@ import javax.net.ssl.X509TrustManager
  */
 class CheckerRepository {
 
+    companion object {
+        // Number of times a single content-count request (live / vod / series)
+        // is retried before falling back to "0". Higher = more resilient to
+        // transient panel failures, at the cost of slightly longer waits.
+        private const val MAX_COUNT_RETRIES = 4
+        private const val COUNT_RETRY_BACKOFF_MS = 350
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS) // large IPTV panels can return multi-MB JSON
@@ -403,7 +411,7 @@ class CheckerRepository {
             // Run the three category requests fully in parallel and surface
             // each real number the moment it arrives (progressive UI).
             coroutineScope {
-                val counts = arrayOf("…", "…", "…")
+                val counts = arrayOf("0", "0", "0")
                 val mutex = Mutex()
 
                 suspend fun publish(index: Int, value: String): String {
@@ -430,18 +438,38 @@ class CheckerRepository {
         }
     }
 
+    /**
+     * Fetch a single category count (live / vod / series).
+     *
+     * Retries the request up to MAX_COUNT_RETRIES times with a short back-off
+     * before falling back to "0". This prevents transient transport failures
+     * (SSL resets, momentary timeouts, broken pipes) from producing an
+     * inconsistent "0" count that differs between back-to-back checks of the
+     * same subscription.
+     */
     private fun fetchArrayCount(url: String): String {
-        return try {
-            val request = Request.Builder()
-                .url(url)
-                .addIptvHeaders(accept = "application/json, text/plain, */*")
-                .build()
-            // Dedicated count client has shorter connect timeout + bigger
-            // read timeout so large panels still finish, but dead hosts fail fast.
-            executeJsonArrayCountWithCompatibility(request).toString()
-        } catch (e: Exception) {
-            "0"
+        val request = Request.Builder()
+            .url(url)
+            .addIptvHeaders(accept = "application/json, text/plain, */*")
+            .build()
+        var lastCount = 0
+        repeat(MAX_COUNT_RETRIES) { attempt ->
+            try {
+                lastCount = executeJsonArrayCountWithCompatibility(request)
+                // A successful response always wins — don't retry a success.
+                return lastCount.toString()
+            } catch (e: Exception) {
+                // Retryable transport failure: wait briefly then try again.
+                if (attempt < MAX_COUNT_RETRIES - 1) {
+                    try {
+                        Thread.sleep(COUNT_RETRY_BACKOFF_MS.toLong())
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                    }
+                }
+            }
         }
+        return lastCount.toString()
     }
 
     /**

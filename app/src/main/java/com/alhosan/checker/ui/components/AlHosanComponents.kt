@@ -942,12 +942,6 @@ private fun RowScope.ContentCountItem(
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
-    // Per-field loading: only this column keeps the pending state when its
-    // own value is still a placeholder. Other columns can show real numbers
-    // as soon as they arrive (progressive counting).
-    val fieldPending = count.trim().let {
-        it.isEmpty() || it == "…" || it == "..." || it == "-" || it == "--"
-    }
     Column(
         modifier = modifier.height(58.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -959,17 +953,19 @@ private fun RowScope.ContentCountItem(
             fontSize = 12.sp,
             maxLines = 1
         )
-        CountUpNumber(count = count, isLoading = isLoading && fieldPending)
+        CountUpNumber(count = count, isLoading = isLoading)
     }
 }
 
 /**
- * Content count number.
+ * Content count number — no dots, sequential count-up.
  *
- * - While this field is still loading: gold pulsing dots (never fake numbers).
- * - When a real count arrives: animate once from 0 → exact value.
- * - Pending marker ("…") from the ViewModel is treated as loading even if
- *   other fields have already finished.
+ * Behavior (per user spec):
+ * - No dots / no placeholders ever. While waiting for the server count we
+ *   simply show "0" in gold (the starting point of the count-up).
+ * - When the real count arrives: animate 0 → exact value sequentially.
+ * - Color while counting (isLoading = true OR animation in progress): Gold.
+ * - Color when finished (isLoading = false AND animation reached target): White.
  */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
@@ -981,58 +977,41 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
             null
         }
     }
-    val stillPending = trimmed.isEmpty() ||
-        trimmed == "…" ||
-        trimmed == "..." ||
-        trimmed == "-" ||
-        trimmed == "--"
 
-    if (stillPending || (isLoading && numericTarget == null)) {
-        val transition = rememberInfiniteTransition(label = "contentCountLoading")
-        val phase by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 3.99f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(900, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "contentCountLoadingDots"
-        )
-        val dots = ".".repeat(phase.toInt().coerceIn(1, 3))
-        Text(
-            text = dots,
-            color = Gold,
-            fontWeight = FontWeight.Black,
-            fontSize = 18.sp
-        )
-    } else if (numericTarget != null) {
-        // Animate once from 0 → exact server count (no looping / no restarts).
+    if (numericTarget != null) {
+        // Animate once from 0 → exact server count (sequential, no loops).
         val animated = remember(numericTarget) {
             androidx.compose.animation.core.Animatable(0f)
         }
         LaunchedEffect(numericTarget) {
             animated.snapTo(0f)
-            val durationMs = (280 + (numericTarget / 40).coerceAtMost(520)).coerceAtLeast(280)
+            // Longer duration so the user sees a clear sequential count-up.
+            val durationMs = (600 + (numericTarget / 25).coerceAtMost(1400)).coerceAtLeast(600)
             animated.animateTo(
                 targetValue = numericTarget.toFloat(),
                 animationSpec = tween(durationMs, easing = LinearEasing)
             )
         }
-        val display = if (animated.value >= numericTarget - 0.5f) {
+        val reachedTarget = animated.value >= numericTarget - 0.5f
+        val display = if (reachedTarget) {
             numericTarget
         } else {
             animated.value.toInt().coerceIn(0, numericTarget)
         }
+        // Gold while counting (global isLoading or this field still animating),
+        // white only when everything finished AND this field reached its target.
+        val color = if (isLoading || !reachedTarget) Gold else Color.White
         Text(
             text = display.toString(),
-            color = Color.White,
+            color = color,
             fontWeight = FontWeight.Black,
             fontSize = 18.sp
         )
     } else {
+        // Non-numeric value (e.g. "--") — just show as-is.
         Text(
-            text = count,
-            color = Color.White,
+            text = count.ifBlank { "0" },
+            color = if (isLoading) Gold else Color.White,
             fontWeight = FontWeight.Black,
             fontSize = 18.sp
         )
