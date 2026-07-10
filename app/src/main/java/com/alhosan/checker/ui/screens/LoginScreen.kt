@@ -20,7 +20,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,10 +57,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
@@ -337,11 +336,17 @@ private fun CheckingOverlay(lang: AppLang) {
     }
 }
 
+/**
+ * Transparent app logo (ic_alhosan_logo.png — RGBA, no opaque plate).
+ * Shine is drawn with SrcAtop so it only covers the horse pixels and never
+ * paints a black/opaque rectangle over the transparent background.
+ */
 @Composable
 private fun ShinyLogo(
     rtl: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val painter = painterResource(id = R.drawable.ic_alhosan_logo)
     val transition = rememberInfiniteTransition(label = "logoShine")
     val progress by transition.animateFloat(
         initialValue = 0f,
@@ -354,29 +359,27 @@ private fun ShinyLogo(
     )
     val sweep = if (rtl) 1.35f - progress * 1.9f else progress * 1.9f - 0.35f
 
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_alhosan_logo),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Fit
-        )
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val bandCenter = size.width * sweep
-            drawRect(
-                brush = Brush.linearGradient(
-                    colors = listOf(
-                        Color.Transparent,
-                        Gold.copy(alpha = 0.10f),
-                        Color.White.copy(alpha = 0.22f),
-                        Gold.copy(alpha = 0.10f),
-                        Color.Transparent
-                    ),
-                    start = Offset(bandCenter - size.width * 0.35f, 0f),
-                    end = Offset(bandCenter + size.width * 0.35f, size.height)
-                )
-            )
+    Canvas(modifier = modifier) {
+        // Draw the transparent PNG first (destination alpha = horse shape only).
+        with(painter) {
+            draw(size = size)
         }
+        // Highlight band only where the logo has pixels — never fills the box.
+        val bandCenter = size.width * sweep
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Gold.copy(alpha = 0.14f),
+                    Color.White.copy(alpha = 0.28f),
+                    Gold.copy(alpha = 0.14f),
+                    Color.Transparent
+                ),
+                start = Offset(bandCenter - size.width * 0.35f, 0f),
+                end = Offset(bandCenter + size.width * 0.35f, size.height)
+            ),
+            blendMode = BlendMode.SrcAtop
+        )
     }
 }
 
