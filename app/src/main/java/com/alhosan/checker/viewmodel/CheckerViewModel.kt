@@ -251,16 +251,17 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
      *
      * Each category (live / movies / series) is requested in parallel and
      * applied to the result as soon as it returns, so the user sees real
-     * numbers appear one-by-one instead of a looping fake counter.
+     * numbers appear one-by-one (gold count-up → white when all done).
      * When all three finish, a toast confirms the content was counted.
      */
     private fun fetchContentCounts(subscription: Subscription) {
         viewModelScope.launch {
             _isCounting.value = true
 
-            // Mark every field as pending so the UI shows gold dots, not "0"
-            // and not a looping fake counter.
-            applyContentCounts("…", "…", "…", force = true)
+            // Start every field at "0" in gold (no dots, no "…" markers).
+            // The UI shows "0" while waiting, then animates 0 → real count
+            // the moment each category's real number arrives.
+            applyContentCounts("0", "0", "0", force = true)
 
             try {
                 val (live, movie, series) = repository.fetchContentCounts(
@@ -279,13 +280,13 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                 showToast(_lang.value.tContentCounted)
             } catch (_: Exception) {
                 // Keep whatever partial values we already painted; fall back
-                // remaining pending markers to "0" so the UI never stays stuck.
+                // remaining fields to "0" so the UI never stays stuck.
                 val current = (_state.value as? CheckerState.Success)?.subscription
                 if (current != null) {
                     applyContentCounts(
-                        live = if (isPendingCount(current.liveCount)) "0" else current.liveCount,
-                        movie = if (isPendingCount(current.movieCount)) "0" else current.movieCount,
-                        series = if (isPendingCount(current.seriesCount)) "0" else current.seriesCount,
+                        live = current.liveCount.ifBlank { "0" },
+                        movie = current.movieCount.ifBlank { "0" },
+                        series = current.seriesCount.ifBlank { "0" },
                         force = true
                     )
                 }
