@@ -942,6 +942,12 @@ private fun RowScope.ContentCountItem(
     isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // Per-field loading: only this column keeps the pending state when its
+    // own value is still a placeholder. Other columns can show real numbers
+    // as soon as they arrive (progressive counting).
+    val fieldPending = count.trim().let {
+        it.isEmpty() || it == "…" || it == "..." || it == "-" || it == "--"
+    }
     Column(
         modifier = modifier.height(58.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -953,43 +959,72 @@ private fun RowScope.ContentCountItem(
             fontSize = 12.sp,
             maxLines = 1
         )
-        CountUpNumber(count = count, isLoading = isLoading)
+        CountUpNumber(count = count, isLoading = isLoading && fieldPending)
     }
 }
 
+/**
+ * Content count number.
+ *
+ * - While this field is still loading: gold pulsing dots (never fake numbers).
+ * - When a real count arrives: animate once from 0 → exact value.
+ * - Pending marker ("…") from the ViewModel is treated as loading even if
+ *   other fields have already finished.
+ */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
-    val numericTarget = remember(count) {
-        count.filter { it.isDigit() }.toIntOrNull()
+    val trimmed = count.trim()
+    val numericTarget = remember(trimmed) {
+        if (trimmed.all { it.isDigit() } && trimmed.isNotEmpty()) {
+            trimmed.toIntOrNull()
+        } else {
+            null
+        }
     }
+    val stillPending = trimmed.isEmpty() ||
+        trimmed == "…" ||
+        trimmed == "..." ||
+        trimmed == "-" ||
+        trimmed == "--"
 
-    if (isLoading) {
+    if (stillPending || (isLoading && numericTarget == null)) {
         val transition = rememberInfiniteTransition(label = "contentCountLoading")
-        val value by transition.animateFloat(
+        val phase by transition.animateFloat(
             initialValue = 0f,
-            targetValue = 99999f,
+            targetValue = 3.99f,
             animationSpec = infiniteRepeatable(
-                animation = tween(1300, easing = LinearEasing),
+                animation = tween(900, easing = LinearEasing),
                 repeatMode = RepeatMode.Restart
             ),
-            label = "contentCountLoadingValue"
+            label = "contentCountLoadingDots"
         )
+        val dots = ".".repeat(phase.toInt().coerceIn(1, 3))
         Text(
-            text = value.toInt().toString(),
+            text = dots,
             color = Gold,
             fontWeight = FontWeight.Black,
             fontSize = 18.sp
         )
     } else if (numericTarget != null) {
-        var target by remember(count) { mutableStateOf(0f) }
-        LaunchedEffect(numericTarget) { target = numericTarget.toFloat() }
-        val value by animateFloatAsState(
-            targetValue = target,
-            animationSpec = tween(900, easing = LinearEasing),
-            label = "contentCountUp"
-        )
+        // Animate once from 0 → exact server count (no looping / no restarts).
+        val animated = remember(numericTarget) {
+            androidx.compose.animation.core.Animatable(0f)
+        }
+        LaunchedEffect(numericTarget) {
+            animated.snapTo(0f)
+            val durationMs = (280 + (numericTarget / 40).coerceAtMost(520)).coerceAtLeast(280)
+            animated.animateTo(
+                targetValue = numericTarget.toFloat(),
+                animationSpec = tween(durationMs, easing = LinearEasing)
+            )
+        }
+        val display = if (animated.value >= numericTarget - 0.5f) {
+            numericTarget
+        } else {
+            animated.value.toInt().coerceIn(0, numericTarget)
+        }
         Text(
-            text = value.toInt().toString(),
+            text = display.toString(),
             color = Color.White,
             fontWeight = FontWeight.Black,
             fontSize = 18.sp
