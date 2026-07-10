@@ -80,21 +80,26 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
           echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          # Unique tag per build so releases never collide. v1.0.0-build63
-          # format keeps version + build traceability.
-          echo "tag_name=v1.0.0-build$BUILD_NUMBER" >> $GITHUB_OUTPUT
-          echo "release_name=AlHosan Checker v1.0.0 (#$BUILD_NUMBER)" >> $GITHUB_OUTPUT
+
+      - name: Delete existing release for v1.0.0
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Delete any existing release + tag for v1.0.0 so the next step
+          # can create a fresh one with the latest APK. Only the latest
+          # successful build ends up in the Release — exactly what we want.
+          gh release delete v1.0.0 --yes --cleanup-tag --repo ${{ github.repository }} || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag_name }}
-          name: ${{ steps.version.outputs.release_name }}
+          tag_name: "v1.0.0"
+          name: "AlHosan Checker v1.0.0"
           body: |
             ## AlHosan Checker — الحصان الفاحص
 
             **الإصدار:** v1.0.0 | **رقم البناء:** #${{ steps.version.outputs.build_number }}
-            **التاق:** ${{ steps.version.outputs.tag_name }}
             **تاريخ البناء:** ${{ steps.version.outputs.date }}
             **Commit:** ${{ steps.version.outputs.commit_short }}
 
@@ -121,5 +126,6 @@ jobs:
           files: app/build/outputs/apk/release/*.apk
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

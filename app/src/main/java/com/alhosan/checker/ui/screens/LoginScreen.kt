@@ -54,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -188,8 +189,12 @@ fun LoginScreen(
                 }
             }
     ) {
+        // Login content — blurred while checking so the transparent overlay
+        // logo floats above a softly out-of-focus background (no solid black).
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (isChecking) Modifier.blur(12.dp) else Modifier)
         ) {
             // ── Card with tabs + inputs + start-check button ──
             Card(
@@ -326,50 +331,31 @@ private fun CheckingOverlay(lang: AppLang) {
 
 /**
  * Transparent app logo (ic_alhosan_logo.png — RGBA, no opaque plate).
- * The Canvas has NO background — it only paints the horse pixels from the
- * transparent PNG, then draws a gold shine with SrcAtop so the shine never
- * fills the transparent areas with black or any other color.
+ *
+ * IMPORTANT: The previous version drew the PNG into a Canvas and then drew
+ * a gold "shine" band on top using BlendMode.SrcAtop. SrcAtop restricts the
+ * shine to the logo's pixels, BUT it also forces the Canvas's alpha channel
+ * to be composited against the destination — which on some Android renderers
+ * premultiplies the transparent regions and produces a visible dark/black
+ * rectangle behind the logo. The user kept seeing a black plate even though
+ * the source PNG is fully transparent.
+ *
+ * Fix: render the PNG with the plain `Image` composable. No Canvas, no
+ * BlendMode, no shine band. The transparent areas stay transparent — only
+ * the horse pixels are painted. This is the only way to guarantee a truly
+ * transparent logo on every device.
  */
 @Composable
 private fun ShinyLogo(
     rtl: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val painter = painterResource(id = R.drawable.ic_alhosan_logo)
-    val transition = rememberInfiniteTransition(label = "logoShine")
-    val progress by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "logoShineProgress"
+    Image(
+        painter = painterResource(id = R.drawable.ic_alhosan_logo),
+        contentDescription = null,
+        modifier = modifier,
+        contentScale = androidx.compose.ui.layout.ContentScale.Fit
     )
-    val sweep = if (rtl) 1.35f - progress * 1.9f else progress * 1.9f - 0.35f
-
-    Canvas(modifier = modifier) {
-        // Draw the transparent PNG first (destination alpha = horse shape only).
-        with(painter) {
-            draw(size = size)
-        }
-        // Highlight band only where the logo has pixels — never fills the box.
-        val bandCenter = size.width * sweep
-        drawRect(
-            brush = Brush.linearGradient(
-                colors = listOf(
-                    Color.Transparent,
-                    Gold.copy(alpha = 0.14f),
-                    Color.White.copy(alpha = 0.28f),
-                    Gold.copy(alpha = 0.14f),
-                    Color.Transparent
-                ),
-                start = Offset(bandCenter - size.width * 0.35f, 0f),
-                end = Offset(bandCenter + size.width * 0.35f, size.height)
-            ),
-            blendMode = BlendMode.SrcAtop
-        )
-    }
 }
 
 

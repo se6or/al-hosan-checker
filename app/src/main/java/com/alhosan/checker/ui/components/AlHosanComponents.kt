@@ -959,28 +959,36 @@ private fun RowScope.ContentCountItem(
 }
 
 /**
- * Content count number — running sequential count-up, no dots.
+ * Content count number — running sequential count-up, no dots, no restarts.
  *
  * Behavior (per user spec):
  * - The moment counting starts, the counter immediately begins running
  *   upward from 0 so the user sees a live counting process — it never
  *   freezes on "0" waiting for the server.
  * - Each field (channels / movies / series) is FULLY INDEPENDENT: when
- *   this field's real number arrives, it animates from its current value
- *   up to the exact server number, then turns WHITE immediately — without
- *   waiting for the other fields to finish.
+ *   this field's real number arrives, it animates from 0 up to the exact
+ *   server number, then turns WHITE immediately — without waiting for the
+ *   other fields to finish.
  * - All fields use the SAME animation duration so visually they finish at
- *   the same speed regardless of count size. Channels are not faster than
- *   movies/series anymore.
- * - Color logic is per-field, NOT global:
+ *   the same speed regardless of count size.
+ * - Color logic is per-field:
  *     • gold while running / animating toward the real target
  *     • white the instant this field reaches its exact server number
  *
  * "Pending" vs "real zero": the ViewModel uses "" (blank) as the pending
  * marker. A blank count = still waiting → run the live counter. A real "0"
  * from the server = the category is genuinely empty → snap to 0 and turn
- * white. This prevents the counter from restarting when the server returns
- * a partial "0" during retries.
+ * white.
+ *
+ * RESTART BUG FIX:
+ *   The previous implementation keyed the LaunchedEffect on (numericTarget,
+ *   isLoading, isPending). When the global isLoading flag flipped to false
+ *   at the end of the counting pass, the effect re-launched and restarted
+ *   the animation — even though the field had already reached its target.
+ *   The new implementation keys the LaunchedEffect ONLY on numericTarget.
+ *   Each field's coroutine is launched exactly once per real number it
+ *   receives, and never re-launches when the global isLoading flag changes
+ *   or when sibling fields finish.
  */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
@@ -1003,33 +1011,30 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
     // Per-field "I reached my own real target" flag. Independent of the
     // global isLoading — turns white the moment THIS field is done.
     var fieldDone by remember { mutableStateOf(false) }
-    // Track the last target we animated to so a partial "0" arriving after
-    // a real number doesn't restart the animation.
-    var lastAnimatedTarget by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(numericTarget, isLoading, isPending) {
-        if (isPending) {
+    // KEY FIX: key only on numericTarget — NOT on isLoading or isPending.
+    // This way the coroutine launches exactly once per real number this
+    // field receives, and never re-launches when isLoading flips to false
+    // at the end of the counting pass (the cause of the restart bug).
+    LaunchedEffect(numericTarget) {
+        if (isPending || numericTarget == null) {
             // No real number yet — keep the counter running upward fast so
-            // the user sees live activity.
+            // the user sees live activity. The coroutine keeps running until
+            // a real number arrives (which re-launches this effect).
             fieldDone = false
             while (true) {
                 displayValue = (displayValue + (10..80).random()).coerceAtMost(999_999)
                 delay(28)
             }
-        } else if (numericTarget != null) {
+        } else {
             // A real server count arrived (could be 0 or a positive number).
-            // Skip re-animation if we already reached this exact target —
-            // prevents restarts when the global isLoading flips to false or
-            // when a partial "0" snapshot arrives after the real number.
-            if (fieldDone && lastAnimatedTarget == numericTarget) return@LaunchedEffect
-
+            // Animate from 0 up to the exact server number — same duration
+            // for every field so channels/movies/series finish at the same
+            // visual speed.
             fieldDone = false
             displayValue = 0
-            lastAnimatedTarget = numericTarget
 
             if (numericTarget > 0) {
-                // FIXED duration for ALL fields — same visual speed for
-                // channels, movies, and series regardless of count size.
                 val durationMs = 600
                 val end = numericTarget.toFloat()
                 val startTime = System.currentTimeMillis()
@@ -1046,10 +1051,10 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
                 displayValue = 0
             }
             fieldDone = true
-        } else {
-            // Non-numeric value — snap.
-            displayValue = 0
-            fieldDone = true
+            // Done. The coroutine ends here. When the global isLoading flag
+            // flips to false later, this effect does NOT re-launch (because
+            // numericTarget didn't change), so the field stays white and the
+            // number stays put — no restart.
         }
     }
 
