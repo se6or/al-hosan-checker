@@ -54,7 +54,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -98,7 +97,7 @@ import com.alhosan.checker.ui.i18n.*
  *   4. 16dp breathing space (outside the card)
  *   5. HISTORY button — OUTSIDE the card, separate, full-width below
  *
- * While checking, a fullscreen blurred-black overlay is shown with the
+ * While checking, a fullscreen transparent overlay is shown with the
  * horse logo + shiny-text label (instead of an inline progress bar).
  *
  * Staggered fade-in (reactbits.dev staggered-menu effect) cascades the
@@ -190,9 +189,7 @@ fun LoginScreen(
             }
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(if (isChecking) Modifier.blur(8.dp) else Modifier)
+            modifier = Modifier.fillMaxSize()
         ) {
             // ── Card with tabs + inputs + start-check button ──
             Card(
@@ -268,7 +265,7 @@ fun LoginScreen(
             if (toastMessage != null) AlHosanToast(message = toastMessage!!)
         }
 
-        // ── Checking overlay: blurred black bg + horse logo + shiny text ──
+        // ── Checking overlay: transparent logo + shiny text (no backdrop) ──
         // Replaces the inline progress bar. Cover the entire screen so the user
         // sees a clean focused "checking" state.
         AnimatedVisibility(
