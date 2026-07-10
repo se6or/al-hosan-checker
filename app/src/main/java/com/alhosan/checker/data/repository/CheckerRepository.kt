@@ -464,7 +464,7 @@ class CheckerRepository {
                 val count = executeJsonArrayCountWithCompatibility(request)
                 // A successful response always wins — don't retry a success.
                 return count.toString()
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Retryable transport failure: wait briefly then try again.
                 if (attempt < MAX_COUNT_RETRIES - 1) {
                     try {

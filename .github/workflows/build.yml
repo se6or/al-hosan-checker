@@ -80,16 +80,21 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
           echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
           echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          # Unique tag per build so releases never collide. v1.0.0-build63
+          # format keeps version + build traceability.
+          echo "tag_name=v1.0.0-build$BUILD_NUMBER" >> $GITHUB_OUTPUT
+          echo "release_name=AlHosan Checker v1.0.0 (#$BUILD_NUMBER)" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v1.0.0"
-          name: "AlHosan Checker v1.0.0"
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: ${{ steps.version.outputs.release_name }}
           body: |
             ## AlHosan Checker — الحصان الفاحص
 
             **الإصدار:** v1.0.0 | **رقم البناء:** #${{ steps.version.outputs.build_number }}
+            **التاق:** ${{ steps.version.outputs.tag_name }}
             **تاريخ البناء:** ${{ steps.version.outputs.date }}
             **Commit:** ${{ steps.version.outputs.commit_short }}
 
