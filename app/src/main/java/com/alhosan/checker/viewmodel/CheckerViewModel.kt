@@ -258,10 +258,11 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             _isCounting.value = true
 
-            // Start every field at "0" in gold (no dots, no "…" markers).
-            // The UI shows "0" while waiting, then animates 0 → real count
-            // the moment each category's real number arrives.
-            applyContentCounts("0", "0", "0", force = true)
+            // Start every field as blank ("") = pending. The UI runs the live
+            // gold counter while blank, then animates 0 → real count the
+            // moment each category's real number arrives. A real "0" from the
+            // server snaps to white immediately.
+            applyContentCounts("", "", "", force = true)
 
             try {
                 val (live, movie, series) = repository.fetchContentCounts(
@@ -279,14 +280,14 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                 applyContentCounts(live, movie, series, force = true)
                 showToast(_lang.value.tContentCounted)
             } catch (_: Exception) {
-                // Keep whatever partial values we already painted; fall back
-                // remaining fields to "0" so the UI never stays stuck.
+                // Keep whatever real values we already painted; fall back
+                // remaining blank fields to "0" so the UI never stays stuck.
                 val current = (_state.value as? CheckerState.Success)?.subscription
                 if (current != null) {
                     applyContentCounts(
-                        live = current.liveCount.ifBlank { "0" },
-                        movie = current.movieCount.ifBlank { "0" },
-                        series = current.seriesCount.ifBlank { "0" },
+                        live = if (isPendingCount(current.liveCount)) "0" else current.liveCount,
+                        movie = if (isPendingCount(current.movieCount)) "0" else current.movieCount,
+                        series = if (isPendingCount(current.seriesCount)) "0" else current.seriesCount,
                         force = true
                     )
                 }
@@ -332,6 +333,15 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         if (force) return incoming
         // Never replace a finished real count with a still-pending marker.
         if (isPendingCount(incoming) && isRealCount(current)) return current
+        // Never downgrade a real positive count to "0" — a partial "0"
+        // arriving from a failed/retried category request must NOT overwrite
+        // a real number we already received. This prevents the UI counter
+        // from restarting after the field already turned white.
+        if (isRealCount(current) && isRealCount(incoming)) {
+            val cur = current.toIntOrNull() ?: 0
+            val inc = incoming.toIntOrNull() ?: 0
+            if (cur > 0 && inc == 0) return current
+        }
         return incoming
     }
 

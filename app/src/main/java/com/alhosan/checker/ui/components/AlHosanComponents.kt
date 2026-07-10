@@ -969,9 +969,18 @@ private fun RowScope.ContentCountItem(
  *   this field's real number arrives, it animates from its current value
  *   up to the exact server number, then turns WHITE immediately — without
  *   waiting for the other fields to finish.
+ * - All fields use the SAME animation duration so visually they finish at
+ *   the same speed regardless of count size. Channels are not faster than
+ *   movies/series anymore.
  * - Color logic is per-field, NOT global:
  *     • gold while running / animating toward the real target
  *     • white the instant this field reaches its exact server number
+ *
+ * "Pending" vs "real zero": the ViewModel uses "" (blank) as the pending
+ * marker. A blank count = still waiting → run the live counter. A real "0"
+ * from the server = the category is genuinely empty → snap to 0 and turn
+ * white. This prevents the counter from restarting when the server returns
+ * a partial "0" during retries.
  */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
@@ -983,54 +992,63 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
             null
         }
     }
+    val isPending = trimmed.isEmpty() ||
+        trimmed == "…" ||
+        trimmed == "..." ||
+        trimmed == "-" ||
+        trimmed == "--"
 
     // Survives recomposition — carries the live running value across phases.
     var displayValue by remember { mutableStateOf(0) }
     // Per-field "I reached my own real target" flag. Independent of the
     // global isLoading — turns white the moment THIS field is done.
     var fieldDone by remember { mutableStateOf(false) }
+    // Track the last target we animated to so a partial "0" arriving after
+    // a real number doesn't restart the animation.
+    var lastAnimatedTarget by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(numericTarget, isLoading) {
-        if (numericTarget != null && numericTarget > 0) {
-            // Already reached this exact target — don't re-animate when the
-            // global isLoading flag flips to false after siblings finish.
-            if (fieldDone && displayValue == numericTarget) return@LaunchedEffect
-            // Real count for this field arrived — reset the running value
-            // to 0 and animate quickly up to the exact server number so the
-            // user sees a clean sequential count-up (not a random overshoot).
-            fieldDone = false
-            displayValue = 0
-            val end = numericTarget.toFloat()
-            // Fast animation: 300ms baseline + 1ms per ~50 units, capped
-            // at 1000ms so even huge counts (50k+) finish in ~1 second.
-            val durationMs = (300 + end.toInt() / 50).coerceIn(300, 1000)
-            val startTime = System.currentTimeMillis()
-            while (true) {
-                val elapsed = System.currentTimeMillis() - startTime
-                val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
-                displayValue = (end * progress).toInt()
-                if (progress >= 1f) break
-                delay(16)
-            }
-            displayValue = numericTarget
-            // This field is done — turn white NOW, don't wait for siblings.
-            fieldDone = true
-        } else if (isLoading) {
-            // Still waiting for the real count — keep the counter running
-            // upward fast so the user sees live activity. Stops the instant
-            // a real number arrives (numericTarget > 0 triggers the branch
-            // above and cancels this loop).
+    LaunchedEffect(numericTarget, isLoading, isPending) {
+        if (isPending) {
+            // No real number yet — keep the counter running upward fast so
+            // the user sees live activity.
             fieldDone = false
             while (true) {
-                // Big fast jumps so the running counter clearly looks "live".
                 displayValue = (displayValue + (10..80).random()).coerceAtMost(999_999)
                 delay(28)
             }
+        } else if (numericTarget != null) {
+            // A real server count arrived (could be 0 or a positive number).
+            // Skip re-animation if we already reached this exact target —
+            // prevents restarts when the global isLoading flips to false or
+            // when a partial "0" snapshot arrives after the real number.
+            if (fieldDone && lastAnimatedTarget == numericTarget) return@LaunchedEffect
+
+            fieldDone = false
+            displayValue = 0
+            lastAnimatedTarget = numericTarget
+
+            if (numericTarget > 0) {
+                // FIXED duration for ALL fields — same visual speed for
+                // channels, movies, and series regardless of count size.
+                val durationMs = 600
+                val end = numericTarget.toFloat()
+                val startTime = System.currentTimeMillis()
+                while (true) {
+                    val elapsed = System.currentTimeMillis() - startTime
+                    val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
+                    displayValue = (end * progress).toInt()
+                    if (progress >= 1f) break
+                    delay(16)
+                }
+                displayValue = numericTarget
+            } else {
+                // Real zero from the server — snap immediately.
+                displayValue = 0
+            }
+            fieldDone = true
         } else {
-            // Counting pass ended with no real number (server returned 0 or
-            // the request failed after all retries) — snap to the final
-            // value and mark this field done so it turns white.
-            displayValue = numericTarget ?: 0
+            // Non-numeric value — snap.
+            displayValue = 0
             fieldDone = true
         }
     }
