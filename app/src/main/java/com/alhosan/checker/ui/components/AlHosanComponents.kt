@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -914,47 +915,92 @@ fun ContentCountDisplay(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .height(86.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.Center
             ) {
-                ContentCountItem(channelsLabel, liveCount, isLoading)
-                Text(" | ", color = Color(0xFF333333), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                ContentCountItem(moviesLabel, movieCount, isLoading)
-                Text(" | ", color = Color(0xFF333333), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                ContentCountItem(seriesLabel, seriesCount, isLoading)
+                ContentCountItem(channelsLabel, liveCount, isLoading, Modifier.weight(1f))
+                Text("|", color = Color(0xFF333333), fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                ContentCountItem(moviesLabel, movieCount, isLoading, Modifier.weight(1f))
+                Text("|", color = Color(0xFF333333), fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
+                ContentCountItem(seriesLabel, seriesCount, isLoading, Modifier.weight(1f))
             }
         }
     }
 }
 
 @Composable
-private fun ContentCountItem(label: String, count: String, isLoading: Boolean) {
+private fun RowScope.ContentCountItem(
+    label: String,
+    count: String,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier
+) {
     Column(
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier.height(58.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = label,
             color = TextDim,
-            fontSize = 12.sp
+            fontSize = 12.sp,
+            maxLines = 1
         )
-        if (isLoading) {
-            androidx.compose.material3.CircularProgressIndicator(
-                color = Gold,
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(18.dp)
-            )
-        } else {
-            Text(
-                text = count,
-                color = Color.White,
-                fontWeight = FontWeight.Black,
-                fontSize = 18.sp
-            )
-        }
+        CountUpNumber(count = count, isLoading = isLoading)
+    }
+}
+
+@Composable
+private fun CountUpNumber(count: String, isLoading: Boolean) {
+    val numericTarget = remember(count) {
+        count.filter { it.isDigit() }.toIntOrNull()
+    }
+
+    if (isLoading) {
+        val transition = rememberInfiniteTransition(label = "contentCountLoading")
+        val value by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 99999f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1300, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "contentCountLoadingValue"
+        )
+        Text(
+            text = value.toInt().toString(),
+            color = Gold,
+            fontWeight = FontWeight.Black,
+            fontSize = 18.sp
+        )
+    } else if (numericTarget != null) {
+        var target by remember(count) { mutableStateOf(0f) }
+        LaunchedEffect(numericTarget) { target = numericTarget.toFloat() }
+        val value by animateFloatAsState(
+            targetValue = target,
+            animationSpec = tween(900, easing = LinearEasing),
+            label = "contentCountUp"
+        )
+        Text(
+            text = value.toInt().toString(),
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 18.sp
+        )
+    } else {
+        Text(
+            text = count,
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 18.sp
+        )
     }
 }
 
