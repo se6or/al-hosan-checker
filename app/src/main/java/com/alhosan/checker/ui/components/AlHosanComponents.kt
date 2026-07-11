@@ -959,109 +959,84 @@ private fun RowScope.ContentCountItem(
 }
 
 /**
- * Content count number — running sequential count-up, no dots, no restarts.
+ * Content count number — independent per-field count-up animation.
  *
- * Behavior (per user spec):
- * - The moment counting starts, the counter immediately begins running
- *   upward from 0 so the user sees a live counting process — it never
- *   freezes on "0" waiting for the server.
- * - Each field (channels / movies / series) is FULLY INDEPENDENT: when
- *   this field's real number arrives, it animates from 0 up to the exact
- *   server number, then turns WHITE immediately — without waiting for the
- *   other fields to finish.
- * - All fields use the SAME animation duration so visually they finish at
- *   the same speed regardless of count size.
- * - Color logic is per-field:
- *     • gold while running / animating toward the real target
- *     • white the instant this field reaches its exact server number
- *
- * "Pending" vs "real zero": the ViewModel uses "" (blank) as the pending
- * marker. A blank count = still waiting → run the live counter. A real "0"
- * from the server = the category is genuinely empty → snap to 0 and turn
- * white.
- *
- * RESTART BUG FIX:
- *   The previous implementation keyed the LaunchedEffect on (numericTarget,
- *   isLoading, isPending). When the global isLoading flag flipped to false
- *   at the end of the counting pass, the effect re-launched and restarted
- *   the animation — even though the field had already reached its target.
- *   The new implementation keys the LaunchedEffect ONLY on numericTarget.
- *   Each field's coroutine is launched exactly once per real number it
- *   receives, and never re-launches when the global isLoading flag changes
- *   or when sibling fields finish.
+ * Each field (channels / movies / series) is FULLY INDEPENDENT:
+ * - Turns GOLD during counting, turns WHITE the instant THIS field reaches
+ *   its own server number — without waiting for sibling fields.
+ * - isLoading = false (image-export capture): renders final value directly,
+ *   no coroutine, guaranteeing the exported PNG shows the correct number.
+ * - LaunchedEffect keyed ONLY on [target] — never restarts when the global
+ *   isCounting flag flips, no restart bug.
+ * - target == null → fast random counter (pending)
+ * - target == 0   → snap white immediately
+ * - target  > 0   → animate 0 → target, then turn white independently
  */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
     val trimmed = count.trim()
-    val numericTarget = remember(trimmed) {
-        if (trimmed.all { it.isDigit() } && trimmed.isNotEmpty()) {
+    val target: Int? = remember(trimmed) {
+        if (trimmed.isNotEmpty() && trimmed.all { it.isDigit() })
             trimmed.toIntOrNull()
-        } else {
-            null
-        }
+        else null
     }
-    val isPending = trimmed.isEmpty() ||
-        trimmed == "…" ||
-        trimmed == "..." ||
-        trimmed == "-" ||
-        trimmed == "--"
 
-    // Survives recomposition — carries the live running value across phases.
-    var displayValue by remember { mutableStateOf(0) }
-    // Per-field "I reached my own real target" flag. Independent of the
-    // global isLoading — turns white the moment THIS field is done.
-    var fieldDone by remember { mutableStateOf(false) }
+    // ── Static capture mode (isLoading = false, used by image export) ────────
+    // Render the final value directly — no coroutine, no animation,
+    // no race condition. Always shows the correct number in the saved image.
+    if (!isLoading) {
+        Text(
+            text = (target ?: 0).toString(),
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            fontSize = 18.sp
+        )
+        return
+    }
 
-    // KEY FIX: key only on numericTarget — NOT on isLoading or isPending.
-    // This way the coroutine launches exactly once per real number this
-    // field receives, and never re-launches when isLoading flips to false
-    // at the end of the counting pass (the cause of the restart bug).
-    LaunchedEffect(numericTarget) {
-        if (isPending || numericTarget == null) {
-            // No real number yet — keep the counter running upward fast so
-            // the user sees live activity. The coroutine keeps running until
-            // a real number arrives (which re-launches this effect).
-            fieldDone = false
-            while (true) {
-                displayValue = (displayValue + (10..80).random()).coerceAtMost(999_999)
-                delay(28)
-            }
-        } else {
-            // A real server count arrived (could be 0 or a positive number).
-            // Animate from 0 up to the exact server number — same duration
-            // for every field so channels/movies/series finish at the same
-            // visual speed.
-            fieldDone = false
-            displayValue = 0
+    // ── Live animation mode (isLoading = true) ────────────────────────────────
+    var display by remember { mutableStateOf(0) }
+    // Per-field flag — turns white for THIS field only, independently.
+    var done by remember { mutableStateOf(false) }
 
-            if (numericTarget > 0) {
-                val durationMs = 600
-                val end = numericTarget.toFloat()
-                val startTime = System.currentTimeMillis()
+    LaunchedEffect(target) {
+        when {
+            target == null -> {
+                // Pending: server hasn't replied yet — fast random counter.
+                done = false
                 while (true) {
-                    val elapsed = System.currentTimeMillis() - startTime
-                    val progress = (elapsed.toFloat() / durationMs).coerceIn(0f, 1f)
-                    displayValue = (end * progress).toInt()
-                    if (progress >= 1f) break
+                    display = (display + (8..55).random()).coerceAtMost(999_999)
+                    delay(25)
+                }
+            }
+            target == 0 -> {
+                // Real zero from server — snap immediately and turn white.
+                display = 0
+                done = true
+            }
+            else -> {
+                // Real positive count — animate 0 → target, then turn white.
+                // THIS field turns white on its OWN schedule, not waiting for
+                // channels/movies/series to finish.
+                done = false
+                display = 0
+                val dur = 700L
+                val t0  = System.currentTimeMillis()
+                while (true) {
+                    val p = ((System.currentTimeMillis() - t0).toFloat() / dur).coerceIn(0f, 1f)
+                    display = (target * p).toInt()
+                    if (p >= 1f) break
                     delay(16)
                 }
-                displayValue = numericTarget
-            } else {
-                // Real zero from the server — snap immediately.
-                displayValue = 0
+                display = target
+                done = true   // ← THIS field turns white NOW, independently
             }
-            fieldDone = true
-            // Done. The coroutine ends here. When the global isLoading flag
-            // flips to false later, this effect does NOT re-launch (because
-            // numericTarget didn't change), so the field stays white and the
-            // number stays put — no restart.
         }
     }
 
-    val color = if (fieldDone) Color.White else Gold
     Text(
-        text = displayValue.toString(),
-        color = color,
+        text = display.toString(),
+        color = if (done) Color.White else Gold,
         fontWeight = FontWeight.Black,
         fontSize = 18.sp
     )
@@ -1201,12 +1176,20 @@ private class StaggeredScopeInstance(
         // IMPORTANT: Column (not Box) so children stack VERTICALLY.
         // Box would stack them on top of each other — that's the bug
         // that caused host/username/password to overlap.
+        //
+        // CompositingStrategy.Adjust: avoids an offscreen compositing buffer
+        // for simple alpha + translation operations. Without this, transparent
+        // PNG logos (like the horse logo) show a black background during the
+        // stagger-in animation, because the offscreen buffer's default
+        // background is opaque black.
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .graphicsLayer {
                     this.alpha = alpha
                     this.translationX = offsetX
+                    this.compositingStrategy =
+                        androidx.compose.ui.graphics.CompositingStrategy.Adjust
                 },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -1214,4 +1197,5 @@ private class StaggeredScopeInstance(
         }
     }
 }
+
 
