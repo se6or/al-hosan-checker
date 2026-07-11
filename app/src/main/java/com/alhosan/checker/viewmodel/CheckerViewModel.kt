@@ -284,19 +284,24 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                 applyContentCounts(live, movie, series, force = true)
                 showToast(_lang.value.tContentCounted)
             } catch (_: Exception) {
-                // Keep whatever real values we already painted; fall back
-                // remaining blank fields to "0" so the UI never stays stuck.
-                val current = (_state.value as? CheckerState.Success)?.subscription
-                if (current != null) {
-                    applyContentCounts(
-                        live = if (isPendingCount(current.liveCount)) "0" else current.liveCount,
-                        movie = if (isPendingCount(current.movieCount)) "0" else current.movieCount,
-                        series = if (isPendingCount(current.seriesCount)) "0" else current.seriesCount,
-                        force = true
-                    )
+                // Exception during fetch — will be cleaned up in finally block below.
+            } finally {
+                // CRITICAL: ensure no field stays stuck in pending ("") state
+                // when counting ends. Failed fields (returned "" after retries)
+                // become "0" so the random counter stops and the field turns white.
+                // Without this, a failed field runs its random counter forever,
+                // showing a random number every time the user looks at it.
+                val sub = (_state.value as? CheckerState.Success)?.subscription
+                if (sub != null) {
+                    val l = if (isPendingCount(sub.liveCount))   "0" else sub.liveCount
+                    val m = if (isPendingCount(sub.movieCount))  "0" else sub.movieCount
+                    val s = if (isPendingCount(sub.seriesCount)) "0" else sub.seriesCount
+                    if (l != sub.liveCount || m != sub.movieCount || s != sub.seriesCount) {
+                        applyContentCounts(l, m, s, force = true)
+                    }
                 }
+                _isCounting.value = false
             }
-            _isCounting.value = false
         }
     }
 
@@ -488,3 +493,4 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         } catch (_: Exception) { }
     }
 }
+
