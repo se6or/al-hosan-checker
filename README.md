@@ -4,19 +4,28 @@
 
 [![Android](https://img.shields.io/badge/Android-8.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-100%25-blueviolet.svg)](https://kotlinlang.org)
-[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-blue.svg)]     (https://developer.android.com/jetpack/compose)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-blue.svg)](https://developer.android.com/jetpack/compose)
 
 ---
 
 ## 🖼️ لقطات الشاشة
 
-**الصور الحقيقية للتطبيق (من الجهاز):**
+صور حقيقية من جهاز فعلي:
 
-| شاشة تسجيل الدخول (Xtream) | شاشة تسجيل الدخول (M3U) | سجل المحفوظات | شاشة النتيجة |
-|-----------------------------|---------------------------|---------------|---------------|
-| <img src="screenshots/Screenshot_2026-07-12-15-30-25-888_com.alhosan.checker.jpg" width="180" /> | <img src="screenshots/Screenshot_2026-07-12-15-33-47-621_com.alhosan.checker.jpg" width="180" /> | <img src="screenshots/Screenshot_2026-07-12-15-32-53-450_com.alhosan.checker-edit.jpg" width="180" /> | <img src="screenshots/Screenshot_2026-07-12-15-30-50-986_com.alhosan.checker-edit.jpg" width="180" /> |
-
-> **ملاحظة**: الصور موجودة في مجلد `screenshots/`. إذا لم تظهر الصور كـ صور حقيقية (فقط روابط)، تأكد من أن ملفات JPG الفعلية موجودة في الريبو (وليست ملفات فارغة). GitHub يحتاج الصور الحقيقية لعرضها.
+<table>
+  <tr>
+    <td align="center"><b>شاشة تسجيل الدخول (Xtream)</b></td>
+    <td align="center"><b>شاشة تسجيل الدخول (M3U)</b></td>
+    <td align="center"><b>شاشة النتيجة</b></td>
+    <td align="center"><b>سجل المحفوظات</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/Screenshot_2026-07-12-15-30-25-888_com.alhosan.checker.jpg" width="200" alt="Xtream login" /></td>
+    <td><img src="screenshots/Screenshot_2026-07-12-15-33-47-621_com.alhosan.checker.jpg" width="200" alt="M3U login" /></td>
+    <td><img src="screenshots/Screenshot_2026-07-12-15-30-50-986_com.alhosan.checker-edit.jpg" width="200" alt="Result screen" /></td>
+    <td><img src="screenshots/Screenshot_2026-07-12-15-32-53-450_com.alhosan.checker-edit.jpg" width="200" alt="History screen" /></td>
+  </tr>
+</table>
 
 ---
 
@@ -108,6 +117,7 @@ al-hosan-checker/
 │   └── src/main/res/
 ├── rust/                     # (اختياري) الكود الأصلي
 │   └── src/
+├── screenshots/              # لقطات الشاشة الحقيقية
 ├── .github/workflows/
 │   └── build.yml             # بناء + إصدار تلقائي
 └── README.md
