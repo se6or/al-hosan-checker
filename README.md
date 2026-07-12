@@ -8,6 +8,17 @@
 
 ---
 
+## 🖼️ لقطات الشاشة
+
+<p align="center">
+  <img src="screenshots/Screenshot_2026-07-12-15-30-25-888_com.alhosan.checker.jpg" width="200" alt="شاشة تسجيل الدخول - وضع Xtream" />
+  <img src="screenshots/Screenshot_2026-07-12-15-33-47-621_com.alhosan.checker.jpg" width="200" alt="شاشة تسجيل الدخول - وضع M3U" />
+  <img src="screenshots/Screenshot_2026-07-12-15-32-53-450_com.alhosan.checker-edit.jpg" width="200" alt="سجل المحفوظات" />
+  <img src="screenshots/Screenshot_2026-07-12-15-30-50-986_com.alhosan.checker-edit.jpg" width="200" alt="شاشة النتيجة" />
+</p>
+
+---
+
 ## ✨ المميزات الرئيسية
 
 - **فحص اشتراكات Xtream** مباشرة (حالة الاشتراك، تاريخ الانتهاء، الأجهزة المتصلة، عدد القنوات/الأفلام/المسلسلات)
@@ -100,12 +111,6 @@ al-hosan-checker/
 │   └── build.yml             # بناء + إصدار تلقائي
 └── README.md
 ```
-
----
-
-## 🖼️ لقطات الشاشة
-
-*(سيتم إضافة لقطات شاشة قريبًا)*
 
 ---
 
