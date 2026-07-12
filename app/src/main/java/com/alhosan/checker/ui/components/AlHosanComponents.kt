@@ -981,28 +981,26 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         else null
     }
 
-    // ── Static capture mode (isLoading = false, used by image export) ────────
-    // Render the final value directly — no coroutine, no animation,
-    // no race condition. Always shows the correct number in the saved image.
-    if (!isLoading) {
-        Text(
-            text = (target ?: 0).toString(),
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            fontSize = 18.sp
-        )
-        return
-    }
-
-    // ── Live animation mode (isLoading = true) ────────────────────────────────
+    // ALL remember/LaunchedEffect calls must be unconditional — Compose
+    // requires a consistent number and order of composable calls on every
+    // recomposition. Moving them before any branching avoids slot-table
+    // misalignment (which was the compile/runtime error from early return).
     var display by remember { mutableStateOf(0) }
-    // Per-field flag — turns white for THIS field only, independently.
-    var done by remember { mutableStateOf(false) }
+    var done    by remember { mutableStateOf(false) }
 
     LaunchedEffect(target) {
+        // ── Static capture (isLoading = false at launch time) ────────────────
+        // Image export passes isCounting=false → isLoading=false. Snap to the
+        // real value immediately so the captured bitmap is always correct.
+        if (!isLoading) {
+            display = target ?: 0
+            done    = true
+            return@LaunchedEffect
+        }
+        // ── Live animation ────────────────────────────────────────────────────
         when {
             target == null -> {
-                // Pending: server hasn't replied yet — fast random counter.
+                // Pending: server hasn't replied — fast random counter.
                 done = false
                 while (true) {
                     display = (display + (8..55).random()).coerceAtMost(999_999)
@@ -1010,15 +1008,14 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
                 }
             }
             target == 0 -> {
-                // Real zero from server — snap immediately and turn white.
+                // Real zero — snap white immediately.
                 display = 0
-                done = true
+                done    = true
             }
             else -> {
-                // Real positive count — animate 0 → target, then turn white.
-                // THIS field turns white on its OWN schedule, not waiting for
-                // channels/movies/series to finish.
-                done = false
+                // Real positive count — animate 0 → target.
+                // This field turns white on its OWN schedule, independently.
+                done    = false
                 display = 0
                 val dur = 700L
                 val t0  = System.currentTimeMillis()
@@ -1029,16 +1026,19 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
                     delay(16)
                 }
                 display = target
-                done = true   // ← THIS field turns white NOW, independently
+                done    = true   // ← THIS field turns white NOW, independently
             }
         }
     }
 
+    // When isLoading=false (capture mode) render final value directly so the
+    // exported PNG shows the correct number even before the LaunchedEffect
+    // coroutine gets a chance to run its first frame.
     Text(
-        text = display.toString(),
-        color = if (done) Color.White else Gold,
+        text  = if (!isLoading) (target ?: 0).toString() else display.toString(),
+        color = if (!isLoading || done) Color.White else Gold,
         fontWeight = FontWeight.Black,
-        fontSize = 18.sp
+        fontSize   = 18.sp
     )
 }
 
