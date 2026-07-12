@@ -1015,17 +1015,21 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
             else -> {
                 // Real positive count — animate 0 → target.
                 // This field turns white on its OWN schedule, independently.
+                // Use local val 't' (Int, not Int?) to avoid smart-cast issues
+                // inside the suspend lambda — the compiler can't guarantee
+                // the captured nullable 'target' stays non-null across suspension.
+                val t = target ?: return@LaunchedEffect
                 done    = false
                 display = 0
                 val dur = 700L
                 val t0  = System.currentTimeMillis()
                 while (true) {
                     val p = ((System.currentTimeMillis() - t0).toFloat() / dur).coerceIn(0f, 1f)
-                    display = (target * p).toInt()
+                    display = (t * p).toInt()
                     if (p >= 1f) break
                     delay(16)
                 }
-                display = target
+                display = t
                 done    = true   // ← THIS field turns white NOW, independently
             }
         }
