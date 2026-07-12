@@ -10,12 +10,13 @@
 
 ## 🖼️ لقطات الشاشة
 
-<p align="center">
-  <img src="screenshots/Screenshot_2026-07-12-15-30-25-888_com.alhosan.checker.jpg" width="200" alt="شاشة تسجيل الدخول - وضع Xtream" />
-  <img src="screenshots/Screenshot_2026-07-12-15-33-47-621_com.alhosan.checker.jpg" width="200" alt="شاشة تسجيل الدخول - وضع M3U" />
-  <img src="screenshots/Screenshot_2026-07-12-15-32-53-450_com.alhosan.checker-edit.jpg" width="200" alt="سجل المحفوظات" />
-  <img src="screenshots/Screenshot_2026-07-12-15-30-50-986_com.alhosan.checker-edit.jpg" width="200" alt="شاشة النتيجة" />
-</p>
+**الصور الحقيقية للتطبيق (من الجهاز):**
+
+| شاشة تسجيل الدخول (Xtream) | شاشة تسجيل الدخول (M3U) | سجل المحفوظات | شاشة النتيجة |
+|-----------------------------|---------------------------|---------------|---------------|
+| <img src="screenshots/Screenshot_2026-07-12-15-30-25-888_com.alhosan.checker.jpg" width="180" /> | <img src="screenshots/Screenshot_2026-07-12-15-33-47-621_com.alhosan.checker.jpg" width="180" /> | <img src="screenshots/Screenshot_2026-07-12-15-32-53-450_com.alhosan.checker-edit.jpg" width="180" /> | <img src="screenshots/Screenshot_2026-07-12-15-30-50-986_com.alhosan.checker-edit.jpg" width="180" /> |
+
+> **ملاحظة**: الصور موجودة في مجلد `screenshots/`. إذا لم تظهر الصور كـ صور حقيقية (فقط روابط)، تأكد من أن ملفات JPG الفعلية موجودة في الريبو (وليست ملفات فارغة). GitHub يحتاج الصور الحقيقية لعرضها.
 
 ---
 
