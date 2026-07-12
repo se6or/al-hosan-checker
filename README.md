@@ -154,19 +154,19 @@ al-hosan-checker/
   <tr>
     <td align="center">
       <a href="https://github.com/se6or">
-        <img src="https://github.com/se6or.png" width="100" alt="se6or" /><br/>
+        <img src="screenshots/contrib-se6or.png" width="120" alt="se6or" /><br/>
         <b>se6or</b>
       </a>
     </td>
     <td align="center">
       <a href="https://z.ai">
-        <img src="https://api.dicebear.com/9.x/bottts-neutral/svg?seed=SuperZ&backgroundColor=1e1e2e" width="100" alt="Super Z" /><br/>
+        <img src="screenshots/contrib-super-z.jpg" width="120" alt="Super Z" /><br/>
         <b>Super Z</b>
       </a>
     </td>
     <td align="center">
-      <a href="https://github.com/apps/arena-ai-coding-agent">
-        <img src="https://api.dicebear.com/9.x/bottts-neutral/svg?seed=lmarena&backgroundColor=2d1b69" width="100" alt="lm Arena" /><br/>
+      <a href="https://lmarena.ai">
+        <img src="screenshots/contrib-lm-arena.jpg" width="120" alt="lm Arena" /><br/>
         <b>lm Arena</b>
       </a>
     </td>
