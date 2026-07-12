@@ -7,6 +7,8 @@
 [![Android](https://img.shields.io/badge/Android-8.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-100%25-blueviolet.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-blue.svg)](https://developer.android.com/jetpack/compose)
+[![⭐ Stars](https://img.shields.io/github/stars/se6or/al-hosan-checker?label=%E2%AD%90%20Stars&color=yellow)](https://github.com/se6or/al-hosan-checker/stargazers)
+[![⬇️ Downloads](https://img.shields.io/github/downloads/se6or/al-hosan-checker/total?label=%E2%AC%87%EF%B8%8F%20Downloads&color=blue)](https://github.com/se6or/al-hosan-checker/releases)
 
 </div>
 
