@@ -1189,7 +1189,7 @@ private class StaggeredScopeInstance(
                     this.alpha = alpha
                     this.translationX = offsetX
                     this.compositingStrategy =
-                        androidx.compose.ui.graphics.CompositingStrategy.Adjust
+                        androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
                 },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
