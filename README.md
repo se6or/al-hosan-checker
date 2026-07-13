@@ -9,8 +9,8 @@
 [![Android](https://img.shields.io/badge/Android-8.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-100%25-blueviolet.svg)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-UI-blue.svg)](https://developer.android.com/jetpack/compose)
-<a href="https://github.com/se6or/al-hosan-checker/stargazers"><img src="badges/stars.svg" alt="Stars" /></a>
-<a href="https://github.com/se6or/al-hosan-checker/releases"><img src="badges/downloads.svg" alt="Downloads" /></a>
+[![Stars](https://img.shields.io/github/stars/se6or/al-hosan-checker?style=flat&color=gold&label=⭐%20نجوم)](https://github.com/se6or/al-hosan-checker/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/se6or/al-hosan-checker/total?style=flat&color=brightgreen&label=⬇️%20تنزيل)](https://github.com/se6or/al-hosan-checker/releases)
 
 </div>
 
