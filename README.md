@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="app/src/main/res/drawable/ic_alhosan_logo.png" width="120" alt="AlHosan Logo" />
+
 # الحصان الفاحص — AlHosan Checker
 
 تطبيق أندرويد احترافي لفحص اشتراكات **Xtream Codes** و **روابط M3U** بسرعة ودقة، مع واجهة عربية/إنجليزية أنيقة.
@@ -15,8 +17,6 @@
 ---
 
 ## 🖼️ لقطات الشاشة
-
-صور حقيقية من جهاز فعلي:
 
 <table>
   <tr>
@@ -55,11 +55,9 @@
 |----------------|----------------------------------|------|
 | **UI**         | Jetpack Compose + Material 3    | واجهة حديثة وسريعة |
 | **Networking** | OkHttp 4 + Kotlin Coroutines    | الطريقة الرئيسية (مستقرة) |
-| **Fallback**   | Rust (اختياري)                  | معالجة ثقيلة عبر JNI (قيد التطوير) |
+| **Fallback**   | Rust (اختياري)                  | معالجة ثقيلة عبر JNI |
 | **Data**       | kotlinx.serialization           | JSON سريع وآمن |
 | **Images**     | Coil                            | تحميل الصور |
-
-> **ملاحظة**: التطبيق يعمل **بشكل كامل** بدون مكتبة Rust. الـ Rust حالياً اختياري ويُستخدم كـ fallback للأداء العالي.
 
 ---
 
@@ -69,43 +67,6 @@
 2. فعّل "تثبيت من مصادر غير معروفة"
 3. افتح التطبيق وأدخل بيانات الاشتراك أو رابط M3U
 4. اضغط **بدء الفحص**
-
----
-
-## 🔧 البناء من المصدر (للمطورين)
-
-### المتطلبات
-- Android Studio Hedgehog أو أحدث
-- JDK 17
-- Android SDK + NDK (اختياري لـ Rust)
-
-### خطوات البناء (بدون Rust - موصى به)
-
-```bash
-./gradlew assembleRelease
-```
-
-سيتم إنشاء الـ APK في:
-```
-app/build/outputs/apk/release/
-```
-
-### بناء Rust (اختياري - للأداء المتقدم)
-
-```bash
-# 1. تثبيت الأهداف
-rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
-
-# 2. تثبيت cargo-ndk
-cargo install cargo-ndk
-
-# 3. بناء المكتبة
-cd rust
-export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
-./build_android.sh
-```
-
-ثم أعد بناء التطبيق.
 
 ---
 
@@ -122,8 +83,7 @@ al-hosan-checker/
 │   │   └── util/
 │   └── src/main/res/
 ├── rust/                     # (اختياري) الكود الأصلي
-│   └── src/
-├── screenshots/              # لقطات الشاشة الحقيقية
+├── screenshots/
 ├── .github/workflows/
 │   └── build.yml             # بناء + إصدار تلقائي
 └── README.md
@@ -178,3 +138,4 @@ al-hosan-checker/
 ---
 
 **صُنع بحب ❤️ لمجتمع IPTV العربي**
+
