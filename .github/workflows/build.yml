@@ -86,18 +86,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Delete any existing release + tag for v1.0.0 so the next step
-          # can create a fresh one with the latest APK. Only the latest
-          # successful build ends up in the Release — exactly what we want.
+          # يحذف الـ release القديم + الـ tag علمود يبقى بس آخر بناء ناجح بالـ Releases
           gh release delete v1.0.0 --yes --cleanup-tag --repo ${{ github.repository }} || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0.0"
-          name: "AlHosan Checker v1.0.0"
+          name: "v1.0.0 — AlHosan Checker"
           body: |
-            ## AlHosan Checker — الحصان الفاحص
+            ## الحصان الفاحص — AlHosan Checker
 
             **الإصدار:** v1.0.0 | **رقم البناء:** #${{ steps.version.outputs.build_number }}
             **تاريخ البناء:** ${{ steps.version.outputs.date }}
@@ -129,3 +127,4 @@ jobs:
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
