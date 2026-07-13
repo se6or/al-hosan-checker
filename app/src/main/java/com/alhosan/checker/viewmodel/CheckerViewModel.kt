@@ -1,6 +1,9 @@
 package com.alhosan.checker.viewmodel
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.alhosan.checker.data.model.AppLang
@@ -68,9 +71,6 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
     // ─── Progress ───
     private val _progressPhase = MutableStateFlow(ProgressPhase.IDLE)
     val progressPhase: StateFlow<ProgressPhase> = _progressPhase.asStateFlow()
-
-    private val _progressPercent = MutableStateFlow(0)
-    val progressPercent: StateFlow<Int> = _progressPercent.asStateFlow()
 
     // ─── Content counts loading ───
     private val _isCounting = MutableStateFlow(false)
@@ -150,6 +150,15 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
      */
     fun checkSubscription() {
         if (_isChecking.value) return
+        lastSavedHash = ""  // reset so same subscription can be re-saved after a fresh check
+
+        // ── Network connectivity guard ──────────────────────────────────────
+        // Fail fast with a clear message instead of waiting for the 6-second
+        // connect timeout when there is no internet at all.
+        if (!isNetworkAvailable()) {
+            _state.value = CheckerState.Error(_lang.value.diagnosticMessage("network_unreachable"))
+            return
+        }
 
         val isM3u = _checkMode.value == CheckMode.M3U
 
@@ -183,12 +192,10 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             try {
                 // Phase 1: Connecting (35%)
                 _progressPhase.value = ProgressPhase.CONNECTING
-                _progressPercent.value = 35
                 delay(500)
 
                 // Phase 2: Verifying (75%)
                 _progressPhase.value = ProgressPhase.VERIFYING
-                _progressPercent.value = 75
                 delay(300)
 
                 // Actual API call
@@ -196,12 +203,10 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
 
                 // Phase 4: Finalizing (100%)
                 _progressPhase.value = ProgressPhase.FINALIZING
-                _progressPercent.value = 100
                 delay(300)
 
                 _isChecking.value = false
                 _progressPhase.value = ProgressPhase.IDLE
-                _progressPercent.value = 0
 
                 result.fold(
                     onSuccess = { subscription ->
@@ -239,7 +244,6 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: Exception) {
                 _isChecking.value = false
                 _progressPhase.value = ProgressPhase.IDLE
-                _progressPercent.value = 0
                 val errorCode = e.message ?: "unknown"
                 _state.value = CheckerState.Error(_lang.value.diagnosticMessage(errorCode))
             }
@@ -380,7 +384,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
      */
     fun saveToHistory() {
         val sub = (_state.value as? CheckerState.Success)?.subscription ?: return
-        val hash = sub.host + sub.username
+        val hash = "${sub.host}|${sub.username}"
         if (hash == lastSavedHash) {
             showToast(_lang.value.tAlreadySaved)
             return
@@ -492,5 +496,24 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             prefs.edit().putString("horse_final_v6", encoded).apply()
         } catch (_: Exception) { }
     }
+
+    /**
+     * Returns true if the device has an active internet connection.
+     * Works on API 21+ (Lollipop) through API 34+ (Android 14).
+     */
+    @Suppress("DEPRECATION")
+    private fun isNetworkAvailable(): Boolean {
+        val cm = getApplication<Application>()
+            .getSystemService(ConnectivityManager::class.java) ?: return true
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } else {
+            cm.activeNetworkInfo?.isConnectedOrConnecting == true
+        }
+    }
 }
+
 
