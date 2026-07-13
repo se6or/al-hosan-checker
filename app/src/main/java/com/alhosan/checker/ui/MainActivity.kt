@@ -103,10 +103,16 @@ fun AlHosanApp() {
     val currentRoute = backStackEntry?.destination?.route
 
     fun popResultAfterTransition() {
+        // Snapshot the state BEFORE popping so we only reset if nothing new
+        // has been loaded while the transition was running (e.g. user restored
+        // a history item during the 330 ms exit animation).
+        val stateAtExit = viewModel.state.value
         navController.popBackStack()
         transitionScope.launch {
             delay(330)
-            viewModel.resetState()
+            if (viewModel.state.value === stateAtExit) {
+                viewModel.resetState()
+            }
         }
     }
 
@@ -281,3 +287,4 @@ private fun CircleHeaderButton(
 fun HeaderSpacer() {
     Spacer(modifier = Modifier.height(4.dp))
 }
+
