@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -282,6 +283,8 @@ class CheckerRepository {
         } catch (first: Exception) {
             if (!isRetryablePanelTransportFailure(first)) throw first
 
+            // NOTE: insecureClient accepts any SSL certificate (self-signed / expired).
+            // This is intentional for IPTV panels — user traffic is NOT secured by TLS on these servers.
             Log.w("CheckerRepo", "Panel transport failed, retrying with IPTV compatibility client: ${request.url}", first)
             try {
                 executeText(insecureClient, request)
@@ -410,6 +413,10 @@ class CheckerRepository {
             val vodUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_vod_streams"
             val seriesUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_series"
 
+            // Hard 30-second ceiling for the entire counting phase.
+            // A server that never finishes sending a giant list would otherwise
+            // keep _isCounting = true and the gold counter spinning forever.
+            withTimeout(30_000L) {
             // Run the three category requests fully in parallel. Each one
             // publishes its real number the instant it arrives — no mutex,
             // no snapshot, no waiting for siblings. Truly independent.
@@ -431,11 +438,12 @@ class CheckerRepository {
                 }
 
                 Triple(liveJob.await(), vodJob.await(), seriesJob.await())
-            }
+            } // end coroutineScope
+            } // end withTimeout
         } catch (e: Exception) {
-            // Catastrophic failure (e.g. cancellation). Return empty (pending)
-            // for all three; the ViewModel's catch block will fall back to
-            // "0" only for fields that never received a real number.
+            // Catastrophic failure (e.g. cancellation or timeout). Return empty
+            // (pending) for all three; the ViewModel's finally block converts
+            // any still-pending field to "0" so the counter stops cleanly.
             Triple("", "", "")
         }
     }
@@ -878,3 +886,4 @@ class CheckerRepository {
         return Result.success(subscription)
     }
 }
+
