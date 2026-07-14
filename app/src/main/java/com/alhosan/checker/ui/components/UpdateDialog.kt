@@ -32,11 +32,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +50,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -62,7 +60,6 @@ import androidx.compose.ui.window.DialogProperties
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.ui.i18n.*
 import com.alhosan.checker.ui.theme.BorderGold
-import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.GoldLight
 import com.alhosan.checker.ui.theme.GreenActive
@@ -272,6 +269,8 @@ fun InAppUpdateGate(lang: AppLang) {
                             val info = update
                             if (info != null && (phase == Phase.PROMPT || phase == Phase.DENIED)) {
                                 // Version compare cards
+                                val currentLayoutDir = LocalLayoutDirection.current
+                                val arrowRotation = if (currentLayoutDir == androidx.compose.ui.unit.LayoutDirection.Rtl) 180f else 0f
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically,
@@ -286,7 +285,7 @@ fun InAppUpdateGate(lang: AppLang) {
                                     Box(
                                         modifier = Modifier
                                             .padding(horizontal = 8.dp)
-                                            .graphicsLayer { rotationZ = if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl) 180f else 0f }
+                                            .graphicsLayer { rotationZ = arrowRotation }
                                     ) {
                                         Text(
                                             "➜",
