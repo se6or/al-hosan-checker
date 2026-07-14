@@ -255,8 +255,9 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
      *
      * Each category (live / movies / series) is requested in parallel and
      * applied to the result as soon as it returns, so the user sees real
-     * numbers appear one-by-one (gold count-up → white when all done).
-     * When all three finish, a toast confirms the content was counted.
+     * numbers appear one-by-one (gold count-up → white when that field's
+     * own count arrives, independently of siblings). When all three
+     * finish, a toast confirms the content was counted.
      */
     private fun fetchContentCounts(subscription: Subscription) {
         viewModelScope.launch {
@@ -264,8 +265,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
 
             // Start every field as blank ("") = pending. The UI runs the live
             // gold counter while blank, then animates 0 → real count the
-            // moment each category's real number arrives. A real "0" from the
-            // server snaps to white immediately.
+            // moment each category's real number arrives.
             applyContentCounts("", "", "", force = true)
 
             try {
@@ -276,32 +276,37 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                     onField = { field, value ->
                         // Each field's real number is applied INDEPENDENTLY the
                         // instant it arrives — no snapshot, no waiting for
-                        // siblings. Channels / movies / series each animate on
-                        // their own and turn white as soon as their own count
-                        // finishes, regardless of what the others are doing.
+                        // siblings. Switch to Main.immediate BEFORE the async
+                        // fetch coroutine resumes, so the final Triple() below
+                        // can't win the race and overwrite a real number with
+                        // a stale "" → "0" (that was the "count shows random
+                        // then wrong number after finish" bug).
                         withContext(Dispatchers.Main.immediate) {
                             applySingleCount(field, value)
                         }
                     }
                 )
-                // Final force-apply in case any onField callbacks were missed.
-                applyContentCounts(live, movie, series, force = true)
+                // Final apply on Main.immediate AFTER every onField has
+                // already been processed, so we never clobber a real number
+                // that arrived via the callback. Empty == still-missing
+                // (timed out) → mergeCount keeps the existing real count.
+                withContext(Dispatchers.Main.immediate) {
+                    applyContentCounts(live, movie, series, force = false)
+                }
                 showToast(_lang.value.tContentCounted)
             } catch (_: Exception) {
-                // Exception during fetch — will be cleaned up in finally block below.
+                // Exception during fetch — cleaned up in finally block below.
             } finally {
-                // CRITICAL: ensure no field stays stuck in pending ("") state
-                // when counting ends. Failed fields (returned "" after retries)
-                // become "0" so the random counter stops and the field turns white.
-                // Without this, a failed field runs its random counter forever,
-                // showing a random number every time the user looks at it.
+                // Ensure no field stays stuck in pending ("") state when
+                // counting ends. Failed fields become "0" so the random
+                // counter stops and the field turns white.
                 val sub = (_state.value as? CheckerState.Success)?.subscription
                 if (sub != null) {
                     val l = if (isPendingCount(sub.liveCount))   "0" else sub.liveCount
                     val m = if (isPendingCount(sub.movieCount))  "0" else sub.movieCount
                     val s = if (isPendingCount(sub.seriesCount)) "0" else sub.seriesCount
                     if (l != sub.liveCount || m != sub.movieCount || s != sub.seriesCount) {
-                        applyContentCounts(l, m, s, force = true)
+                        applyContentCounts(l, m, s, force = false)
                     }
                 }
                 _isCounting.value = false
@@ -312,16 +317,18 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
     /**
      * Apply a single field's real count. Called the moment that field's
      * server request finishes — independently of the other two fields.
+     * Uses force=false (merge) so if this field already received a real
+     * number via an earlier out-of-order event, we never downgrade it.
      */
     private fun applySingleCount(field: CheckerRepository.ContentField, value: String) {
         val currentSub = (_state.value as? CheckerState.Success)?.subscription ?: return
         val newSub = when (field) {
             CheckerRepository.ContentField.LIVE ->
-                currentSub.copy(liveCount = mergeCount(currentSub.liveCount, value, force = true))
+                currentSub.copy(liveCount = mergeCount(currentSub.liveCount, value, force = false))
             CheckerRepository.ContentField.MOVIE ->
-                currentSub.copy(movieCount = mergeCount(currentSub.movieCount, value, force = true))
+                currentSub.copy(movieCount = mergeCount(currentSub.movieCount, value, force = false))
             CheckerRepository.ContentField.SERIES ->
-                currentSub.copy(seriesCount = mergeCount(currentSub.seriesCount, value, force = true))
+                currentSub.copy(seriesCount = mergeCount(currentSub.seriesCount, value, force = false))
         }
         _state.value = CheckerState.Success(newSub)
     }

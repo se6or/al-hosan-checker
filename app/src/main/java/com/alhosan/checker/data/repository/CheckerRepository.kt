@@ -6,9 +6,12 @@ import com.alhosan.checker.data.model.Subscription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
+import java.io.BufferedReader
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -64,10 +67,17 @@ class CheckerRepository {
 
     companion object {
         // Number of times a single content-count request (live / vod / series)
-        // is retried before falling back to "0". Kept small so the counting
-        // phase stays fast — a single failed category won't hold up the others.
-        private const val MAX_COUNT_RETRIES = 3
-        private const val COUNT_RETRY_BACKOFF_MS = 150
+        // is retried before giving up. Kept small so the counting phase stays
+        // fast — a single failed category won't hold up the others.
+        private const val MAX_COUNT_RETRIES = 2
+        private const val COUNT_RETRY_BACKOFF_MS = 120L
+        // Per-category timeouts. Live is the smallest payload (~1–3 MB);
+        // VOD/series can be 20–60 MB so they get more headroom.
+        private const val LIVE_TIMEOUT_MS = 15_000L
+        private const val VOD_TIMEOUT_MS = 25_000L
+        private const val SERIES_TIMEOUT_MS = 25_000L
+        // Global ceiling for the parallel group.
+        private const val TOTAL_COUNT_TIMEOUT_MS = 28_000L
     }
 
     private val client = OkHttpClient.Builder()
@@ -78,10 +88,13 @@ class CheckerRepository {
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
         // Allow live + movies + series counts to run truly in parallel.
+        // Per-host raised so the three category requests don't queue
+        // behind each other (movies/series were waiting for channels).
         .dispatcher(Dispatcher().apply {
-            maxRequests = 16
-            maxRequestsPerHost = 6
+            maxRequests = 32
+            maxRequestsPerHost = 16
         })
+        .connectionPool(okhttp3.ConnectionPool(10, 30, TimeUnit.SECONDS))
         .connectionSpecs(
             listOf(
                 ConnectionSpec.MODERN_TLS,
@@ -262,8 +275,13 @@ class CheckerRepository {
             .header("User-Agent", "IPTVSmartersPro/4.0 (Linux; Android 10) ExoPlayerLib/2.18.1")
             .header("Accept", accept)
             .header("Accept-Language", "en-US,en;q=0.9,*;q=0.8")
-            .header("Connection", "close")
+            // Gzip compression shrinks big VOD/series payloads 70–90%.
+            .header("Accept-Encoding", "gzip, deflate")
             .header("Cache-Control", "no-cache")
+        // NOTE: intentionally NO "Connection: close" — let OkHttp reuse the
+        // keep-alive TCP/TLS connection across the 3 parallel category
+        // requests. Otherwise every category re-handshakes TLS and channels
+        // always wins the race, making movies/series look "slower".
     }
 
     private data class HttpTextResponse(
@@ -413,26 +431,28 @@ class CheckerRepository {
             val vodUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_vod_streams"
             val seriesUrl = "${h}/player_api.php?username=${u}&password=${p}&action=get_series"
 
-            // Hard 30-second ceiling for the entire counting phase.
-            // A server that never finishes sending a giant list would otherwise
-            // keep _isCounting = true and the gold counter spinning forever.
-            withTimeout(30_000L) {
+            // Hard ceiling for the parallel group so a dead category can't
+            // keep the gold counter spinning forever.
+            withTimeout(TOTAL_COUNT_TIMEOUT_MS) {
             // Run the three category requests fully in parallel. Each one
             // publishes its real number the instant it arrives — no mutex,
             // no snapshot, no waiting for siblings. Truly independent.
+            //
+            // Each category also has its own timeout so a giant VOD/series
+            // payload that never finishes doesn't hold up the entire group.
             coroutineScope {
                 val liveJob = async {
-                    val v = fetchArrayCount(liveUrl)
+                    val v = withTimeoutOrNull(LIVE_TIMEOUT_MS) { fetchArrayCount(liveUrl) } ?: ""
                     onField?.invoke(ContentField.LIVE, v)
                     v
                 }
                 val vodJob = async {
-                    val v = fetchArrayCount(vodUrl)
+                    val v = withTimeoutOrNull(VOD_TIMEOUT_MS) { fetchArrayCount(vodUrl) } ?: ""
                     onField?.invoke(ContentField.MOVIE, v)
                     v
                 }
                 val seriesJob = async {
-                    val v = fetchArrayCount(seriesUrl)
+                    val v = withTimeoutOrNull(SERIES_TIMEOUT_MS) { fetchArrayCount(seriesUrl) } ?: ""
                     onField?.invoke(ContentField.SERIES, v)
                     v
                 }
@@ -441,9 +461,10 @@ class CheckerRepository {
             } // end coroutineScope
             } // end withTimeout
         } catch (e: Exception) {
-            // Catastrophic failure (e.g. cancellation or timeout). Return empty
-            // (pending) for all three; the ViewModel's finally block converts
-            // any still-pending field to "0" so the counter stops cleanly.
+            // Catastrophic failure (cancellation, outer timeout, etc).
+            // Return empty (pending) for all three; the ViewModel's finally
+            // block converts any still-pending field to "0" so the counter
+            // stops cleanly.
             Triple("", "", "")
         }
     }
@@ -454,13 +475,15 @@ class CheckerRepository {
     /**
      * Fetch a single category count (live / vod / series).
      *
-     * Retries the request up to MAX_COUNT_RETRIES times with a short back-off.
+     * This is a suspend fun so the retry backoff uses coroutine delay
+     * instead of Thread.sleep (which was blocking OkHttp threads).
+     *
      * On success: returns the real count as a string (may be "0" if the
      * server genuinely has no items in that category).
-     * On total failure after all retries: returns "" (empty = pending) so the
-     * ViewModel/UI knows the category never received a real number — this
-     * prevents a spurious "0" from overwriting a previously received real
-     * count and restarting the UI counter.
+     * On total failure after all retries: returns "" (empty = pending) so
+     * the ViewModel/UI knows the category never received a real number —
+     * this prevents a spurious "0" from overwriting a previously received
+     * real count and restarting the UI counter.
      */
     private suspend fun fetchArrayCount(url: String): String {
         val request = Request.Builder()
@@ -469,20 +492,19 @@ class CheckerRepository {
             .build()
         repeat(MAX_COUNT_RETRIES) { attempt ->
             try {
-                val count = executeJsonArrayCountWithCompatibility(request)
+                val count = withContext(Dispatchers.IO) {
+                    executeJsonArrayCountWithCompatibility(request)
+                }
                 // A successful response always wins — don't retry a success.
                 return count.toString()
             } catch (_: Exception) {
-                // Retryable transport failure: wait briefly then try again.
+                // Retryable transport failure: non-blocking wait then try again.
                 if (attempt < MAX_COUNT_RETRIES - 1) {
-                    kotlinx.coroutines.delay(COUNT_RETRY_BACKOFF_MS.toLong())
+                    delay(COUNT_RETRY_BACKOFF_MS)
                 }
             }
         }
-        // All retries exhausted — return empty (pending), NOT "0". The
-        // ViewModel's mergeCount will keep any previously received real
-        // number; the catch block in fetchContentCounts will eventually
-        // fall back to "0" only if no real number ever arrived.
+        // All retries exhausted — return empty (pending), NOT "0".
         return ""
     }
 
@@ -516,8 +538,8 @@ class CheckerRepository {
 
     private fun countJsonArrayWithClient(okHttpClient: OkHttpClient, request: Request): Int {
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return 0
-            val body = response.body ?: return 0
+            if (!response.isSuccessful) throw java.io.IOException("HTTP error ${response.code}")
+            val body = response.body ?: throw java.io.IOException("Null body")
             body.charStream().use { reader ->
                 return countFirstJsonArrayElements(reader)
             }
@@ -533,15 +555,28 @@ class CheckerRepository {
         var tokenStarted = false
         var count = 0
 
+        // Buffered read — cuts counting time noticeably for giant 20–50 MB
+        // VOD / series payloads on slow servers.
+        val buf = BufferedReader(reader, 64 * 1024)
+
         while (true) {
-            val code = reader.read()
+            val code = buf.read()
             if (code == -1) break
             val ch = code.toChar()
 
             if (!started) {
-                if (ch == '[') {
-                    started = true
-                    arrayDepth = 1
+                // Skip any leading whitespace / BOM up to the first '['.
+                // If we hit '{' first the server returned an error object
+                // instead of an array (common on misbehaving panels) —
+                // report 0 items rather than throwing/retrying forever.
+                when {
+                    ch == '[' -> {
+                        started = true
+                        arrayDepth = 1
+                    }
+                    ch == '{' -> return 0
+                    ch.isWhitespace() || ch == '\uFEFF' -> Unit
+                    else -> throw java.io.IOException("Response is not a JSON array")
                 }
                 continue
             }
@@ -563,21 +598,30 @@ class CheckerRepository {
                     if (arrayDepth == 1) tokenStarted = true
                 }
                 '[' -> {
-                    arrayDepth++
+                    // BUG FIX: a sub-array opening while at top level IS the
+                    // start of the next top-level element (e.g. [1,[2,3],4]).
+                    // The old code incremented depth BEFORE setting
+                    // tokenStarted, so when the matching ',' arrived later
+                    // tokenStarted was still false and the element was never
+                    // counted → movies/series count was sometimes wrong.
                     if (arrayDepth == 1) tokenStarted = true
+                    arrayDepth++
                 }
                 ']' -> {
-                    if (arrayDepth == 1) {
+                    arrayDepth--
+                    if (arrayDepth == 0) {
+                        // End of top-level array — count the in-progress element.
                         if (tokenStarted) count++
                         return count
                     }
-                    arrayDepth--
                 }
                 '{' -> {
                     objectDepth++
                     if (arrayDepth == 1) tokenStarted = true
                 }
-                '}' -> if (objectDepth > 0) objectDepth--
+                '}' -> {
+                    if (objectDepth > 0) objectDepth--
+                }
                 ',' -> {
                     if (arrayDepth == 1 && objectDepth == 0) {
                         if (tokenStarted) count++
@@ -589,7 +633,8 @@ class CheckerRepository {
             }
         }
 
-        return count
+        if (!started) throw java.io.IOException("Response is not a JSON array")
+        throw java.io.IOException("Unexpected EOF in JSON array")
     }
 
     /**
