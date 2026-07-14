@@ -5,13 +5,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageInstaller
 import android.database.Cursor
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import androidx.core.content.FileProvider
-import com.alhosan.checker.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -84,8 +82,24 @@ object AppUpdater {
      * Check GitHub for a newer release. Returns null if up-to-date, no APK
      * asset, or user previously skipped this exact version.
      */
+    private fun currentVersionCode(context: Context): Int = try {
+        val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("DEPRECATION")
+            (pInfo.longVersionCode and 0xFFFFFFFFL).toInt()
+        } else {
+            pInfo.versionCode
+        }
+    } catch (_: Exception) { 1 }
+
+    private fun currentVersionName(context: Context): String = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+    } catch (_: Exception) { "" }
+
     suspend fun checkForUpdate(context: Context): UpdateInfo? = withContext(Dispatchers.IO) {
         try {
+            val installedCode = currentVersionCode(context)
             val url = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
             val request = Request.Builder()
                 .url(url)
@@ -105,7 +119,7 @@ object AppUpdater {
             } ?: return@withContext null
             val versionCode = parseVersionCode(asset.name, release.tag_name)
             val versionName = parseVersionName(release.tag_name, release.name)
-            if (versionCode <= BuildConfig.VERSION_CODE) return@withContext null
+            if (versionCode <= installedCode) return@withContext null
 
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (prefs.getInt(KEY_SKIPPED_VERSION, 0) == versionCode) {
@@ -146,11 +160,11 @@ object AppUpdater {
         // we can install. We don't request here — the UI layer asks for it up
         // front before calling startDownload.
 
+        val isRtl = context.resources.configuration.layoutDirection ==
+            android.util.LayoutDirection.RTL
         val request = DownloadManager.Request(Uri.parse(info.apkUrl))
             .setTitle("AlHosan Checker v${info.versionName}")
-            .setDescription(if (context.resources.configuration.layoutDirection ==
-                android.util.LayoutDirection.RTL
-            ) "جاري تحميل التحديث..." else "Downloading update...")
+            .setDescription(if (isRtl) "جاري تحميل التحديث..." else "Downloading update...")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationUri(Uri.fromFile(target))
             .setMimeType("application/vnd.android.package-archive")

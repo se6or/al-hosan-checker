@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.alhosan.checker.BuildConfig
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.ui.i18n.*
 import com.alhosan.checker.ui.theme.BorderGold
@@ -72,6 +71,12 @@ import kotlinx.coroutines.withContext
 fun InAppUpdateGate(lang: AppLang) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val installedVersion = remember(ctx) {
+        try {
+            ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: ""
+        } catch (_: Exception) { "" }
+    }
 
     var update by remember { mutableStateOf<AppUpdater.UpdateInfo?>(null) }
     var phase by remember { mutableStateOf(Phase.CHECKING) }
@@ -178,7 +183,7 @@ fun InAppUpdateGate(lang: AppLang) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(lang.updateCurrentVersion, color = TextDim, fontSize = 12.sp)
                             Text(
-                                "v${BuildConfig.VERSION_NAME}",
+                                "v${installedVersion.ifBlank { "1.0.0" }}",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
