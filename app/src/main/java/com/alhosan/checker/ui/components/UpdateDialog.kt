@@ -1,6 +1,5 @@
 package com.alhosan.checker.ui.components
 
-import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -99,33 +98,24 @@ fun InAppUpdateGate(lang: AppLang) {
         onDispose { runCatching { ctx.unregisterReceiver(receiver) } }
     }
 
-    // "Allow install unknown apps" permission result.
+    // "Allow install unknown apps" — this is a special permission that CANNOT be
+    // requested via the standard runtime permission dialog (RequestPermission always
+    // returns granted=false for REQUEST_INSTALL_PACKAGES). The only correct approach
+    // is to send the user to Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES and check
+    // the result when they return.
     val installPermLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            // If we already downloaded the APK and were waiting for perm, trigger install now.
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        // User came back from Settings — re-check if they granted the permission.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            ctx.packageManager.canRequestPackageInstalls()
+        ) {
             val id = downloadId
             if (id != -1L) {
                 val st = AppUpdater.downloadStatus(ctx, id)
                 if (st.isSuccessful) {
                     AppUpdater.installDownloadedApk(ctx, id)
                     phase = Phase.DONE
-                    return@rememberLauncherForActivityResult
-                }
-            }
-            // Otherwise permission was granted before download started -> nothing to do.
-        } else {
-            // Don't fail — the BroadcastReceiver will also fire the install
-            // intent which will prompt the user; we just note that the direct
-            // launch was denied.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                runCatching {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        Uri.parse("package:${ctx.packageName}")
-                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    ctx.startActivity(intent)
                 }
             }
         }
@@ -147,18 +137,20 @@ fun InAppUpdateGate(lang: AppLang) {
             if (st.isSuccessful) {
                 if (!completedHandled) {
                     completedHandled = true
-                    // Install permission check on API 26+; if already granted,
-                    // install immediately; otherwise request, receiver fires
-                    // install intent anyway after user grants.
                     val canInstall = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        @Suppress("DEPRECATION")
                         ctx.packageManager.canRequestPackageInstalls()
                     } else true
                     if (canInstall) {
                         AppUpdater.installDownloadedApk(ctx, downloadId)
                         phase = Phase.DONE
                     } else {
-                        installPermLauncher.launch(Manifest.permission.REQUEST_INSTALL_PACKAGES)
+                        // Open Settings directly — REQUEST_INSTALL_PACKAGES cannot
+                        // be requested via the standard permission dialog.
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:${ctx.packageName}")
+                        )
+                        installPermLauncher.launch(intent)
                         phase = Phase.DENIED
                     }
                 }
@@ -278,7 +270,7 @@ fun InAppUpdateGate(lang: AppLang) {
                                 ) {
                                     VersionChip(
                                         label = lang.updateCurrentVersion,
-                                        version = installedVersion.ifBlank { "1.0.1" },
+                                        version = installedVersion.ifBlank { "1.0.8" },
                                         accent = TextDim,
                                         valueColor = Color.White
                                     )
@@ -447,14 +439,11 @@ fun InAppUpdateGate(lang: AppLang) {
                                             val info2 = update ?: return@ActionButton
                                             if (phase == Phase.DENIED) {
                                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                                    runCatching {
-                                                        val intent = Intent(
-                                                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                                            Uri.parse("package:${ctx.packageName}")
-                                                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                        ctx.startActivity(intent)
-                                                    }
-                                                    installPermLauncher.launch(Manifest.permission.REQUEST_INSTALL_PACKAGES)
+                                                    val intent = Intent(
+                                                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                                        Uri.parse("package:${ctx.packageName}")
+                                                    )
+                                                    installPermLauncher.launch(intent)
                                                 }
                                             } else {
                                                 scope.launch {

@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -141,25 +140,14 @@ fun AlHosanApp() {
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // Crossfade content whenever the language changes so text and icons
-            // don't snap — they fade out the old language and fade in the new
-            // one smoothly.
-            val currentLang by viewModel.lang.collectAsState()
-            androidx.compose.animation.Crossfade(
-                targetState = currentLang,
-                animationSpec = tween(durationMillis = 320),
-                label = "lang-crossfade"
+            NavHost(
+                navController = navController,
+                startDestination = "splash",
+                enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+                exitTransition = { alHosanStaggeredExit(durationMs = 300) },
+                popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+                popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
             ) {
-                NavHost(
-                    navController = navController,
-                    startDestination = "splash",
-                    // Content enters from right to left, exits left to right.
-                    // The header/back button above remains fixed.
-                    enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
-                    exitTransition = { alHosanStaggeredExit(durationMs = 300) },
-                    popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
-                    popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
-                ) {
                 composable("splash") {
                     SplashScreen(
                         onSplashComplete = {
@@ -195,7 +183,6 @@ fun AlHosanApp() {
                     )
                 }
                 } // end NavHost
-            } // end Crossfade
         }
     }
 }
