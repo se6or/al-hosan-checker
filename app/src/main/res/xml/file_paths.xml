@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Allow sharing update APKs downloaded to app's external-files/updates/ -->
+    <external-files-path
+        name="updates"
+        path="updates/" />
+    <!-- Fallback cache dir if a build ever stores APKs here -->
+    <cache-path
+        name="cache"
+        path="/" />
+</paths>

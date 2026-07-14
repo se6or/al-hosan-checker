@@ -356,3 +356,45 @@ val AppLang.lSeries: String get() = when (this) {
     AppLang.AR -> "المسلسلات"
     AppLang.EN -> "Series"
 }
+
+// ─── In-app updater ────────────────────────────────────────────────────
+val AppLang.updateAvailableTitle: String get() = when (this) {
+    AppLang.AR -> "يتوفر تحديث جديد"
+    AppLang.EN -> "Update available"
+}
+val AppLang.updateNewVersion: String get() = when (this) {
+    AppLang.AR -> "الإصدار الجديد"
+    AppLang.EN -> "New version"
+}
+val AppLang.updateCurrentVersion: String get() = when (this) {
+    AppLang.AR -> "إصدارك الحالي"
+    AppLang.EN -> "Your version"
+}
+val AppLang.updateNow: String get() = when (this) {
+    AppLang.AR -> "تحديث الآن"
+    AppLang.EN -> "Update now"
+}
+val AppLang.updateLater: String get() = when (this) {
+    AppLang.AR -> "لاحقاً"
+    AppLang.EN -> "Later"
+}
+val AppLang.updateSkip: String get() = when (this) {
+    AppLang.AR -> "تخطي هذا الإصدار"
+    AppLang.EN -> "Skip this version"
+}
+val AppLang.updatePreparing: String get() = when (this) {
+    AppLang.AR -> "جاري تحضير التحديث..."
+    AppLang.EN -> "Preparing update..."
+}
+val AppLang.updateDownloading: String get() = when (this) {
+    AppLang.AR -> "جاري التحميل"
+    AppLang.EN -> "Downloading"
+}
+val AppLang.updateFailed: String get() = when (this) {
+    AppLang.AR -> "فشل تحميل التحديث"
+    AppLang.EN -> "Failed to download update"
+}
+val AppLang.updateInstallPrompt: String get() = when (this) {
+    AppLang.AR -> "يرجى السماح بتثبيت التحديثات من التطبيق"
+    AppLang.EN -> "Please allow installing updates from this app"
+}

@@ -77,6 +77,7 @@ import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.ui.components.AlHosanInputRow
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
+import com.alhosan.checker.ui.components.InAppUpdateGate
 import com.alhosan.checker.ui.components.ShinyText
 import com.alhosan.checker.ui.components.StaggeredColumn
 import com.alhosan.checker.ui.components.alHosanStaggeredEnter
@@ -282,6 +283,11 @@ fun LoginScreen(
         ) {
             CheckingOverlay(lang = lang)
         }
+
+        // ── In-app update gate: checks GitHub Releases once on launch and
+        // shows a modal dialog if a new version is available. Does nothing
+        // if the installed build is the latest.
+        InAppUpdateGate(lang = lang)
     }
 }
 

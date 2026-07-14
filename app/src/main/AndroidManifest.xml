@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- DownloadManager writes the APK to external-files/updates; no extra
+         permission needed for that path on any Android version. -->
 
     <!-- Required for saving exported result-image PNGs to the gallery on Android 9 (API 28) and below.
          On Android 10+ (API 29+), MediaStore scoped storage is used and no permission is needed. -->
@@ -29,6 +31,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- FileProvider: needed to hand APKs to the package installer on Android 7+. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>
