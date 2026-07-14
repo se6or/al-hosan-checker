@@ -44,10 +44,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -569,11 +567,16 @@ private fun CapsuleContainer(
 @Composable
 fun DividerRow(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier
-            .fillMaxWidth(0.9f)
-            .height(1.dp)
-            .background(BorderGold)
-    )
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .height(1.dp)
+                .background(BorderGold)
+        )
+    }
 }
 
 /**
@@ -772,7 +775,9 @@ fun RunningHorseLogo(
         contentDescription = "الحصان",
         modifier = modifier
             .then(
-                if (isRunning) Modifier.offset(y = offsetY.dp)
+                if (isRunning) Modifier
+                    .offset(y = offsetY.dp)
+                    .graphicsLayer { rotationZ = rotation }
                 else Modifier
             ),
         contentScale = ContentScale.Fit

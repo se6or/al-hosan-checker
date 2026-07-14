@@ -117,24 +117,27 @@ fun HistoryScreen(
                                 fontWeight = FontWeight.Bold
                             )
 
-                            Box(
-                                modifier = Modifier
-                                    .background(Color.Transparent, RoundedCornerShape(16.dp))
-                                    .border(1.dp, RedInactive, RoundedCornerShape(16.dp))
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable {
-                                        viewModel.showModal("clearAllMsg") {
-                                            viewModel.clearHistory()
+                            // Only show "Clear All" when there's something to clear
+                            if (history.isNotEmpty()) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color.Transparent, RoundedCornerShape(16.dp))
+                                        .border(1.dp, RedInactive, RoundedCornerShape(16.dp))
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .clickable {
+                                            viewModel.showModal("clearAllMsg") {
+                                                viewModel.clearHistory()
+                                            }
                                         }
-                                    }
-                                    .padding(horizontal = 18.dp, vertical = 10.dp)
-                            ) {
-                                Text(
-                                    text = lang.clearAll,
-                                    color = RedInactive,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
+                                        .padding(horizontal = 18.dp, vertical = 10.dp)
+                                ) {
+                                    Text(
+                                        text = lang.clearAll,
+                                        color = RedInactive,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                }
                             }
                         }
                     }

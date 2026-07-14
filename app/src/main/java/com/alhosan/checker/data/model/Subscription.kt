@@ -98,5 +98,8 @@ data class HistoryItem(
     val time: String,
     val isActive: Boolean,
     val isM3uMode: Boolean = false,
-    val m3uLink: String = ""
+    val m3uLink: String = "",
+    // Stores the boolean directly — avoids language-mismatch bug when the user
+    // saves in Arabic then restores in English (or vice versa).
+    val isTrial: Boolean = false
 )

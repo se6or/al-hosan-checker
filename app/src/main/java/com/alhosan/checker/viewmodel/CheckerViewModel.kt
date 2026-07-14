@@ -408,7 +408,8 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             ).format(java.util.Date()),
             isActive = sub.isActive,
             isM3uMode = sub.isM3uMode,
-            m3uLink = sub.m3uLink
+            m3uLink = sub.m3uLink,
+            isTrial = sub.isTrial  // store boolean to avoid language-mismatch on restore
         )
 
         val logs = _history.value.toMutableList()
@@ -458,7 +459,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             created = item.created,
             activeCons = item.activeCons,
             maxCons = item.maxCons,
-            isTrial = item.trial == _lang.value.yes,
+            isTrial = item.isTrial,  // use stored boolean — avoids language-mismatch bug
             liveCount = item.content.split("|").getOrNull(0)?.trim() ?: "0",
             movieCount = item.content.split("|").getOrNull(1)?.trim() ?: "0",
             seriesCount = item.content.split("|").getOrNull(2)?.trim() ?: "0",
