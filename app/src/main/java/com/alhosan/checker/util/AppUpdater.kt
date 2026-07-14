@@ -177,7 +177,7 @@ object AppUpdater {
             // receiver can trigger install.
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
-                .putLong("download_id_$id", target.absolutePath)
+                .putString("download_path_$id", target.absolutePath)
                 .putLong("pending_download_id", id)
                 .apply()
         }
@@ -220,7 +220,7 @@ object AppUpdater {
      */
     fun installDownloadedApk(context: Context, downloadId: Long) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val path = prefs.getString("download_id_$downloadId", null) ?: return
+        val path = prefs.getString("download_path_$downloadId", null) ?: return
         val apk = File(path)
         if (!apk.exists()) return
 
@@ -241,7 +241,7 @@ object AppUpdater {
         }
         context.startActivity(install)
 
-        prefs.edit().remove("download_id_$downloadId")
+        prefs.edit().remove("download_path_$downloadId")
             .remove("pending_download_id")
             .apply()
     }
