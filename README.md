@@ -132,6 +132,12 @@ al-hosan-checker/
         <b>lm Arena</b>
       </a>
     </td>
+    <td align="center">
+      <a href="https://claude.ai">
+        <img src="https://avatars.githubusercontent.com/u/76263028?s=120" width="120" alt="Claude" /><br/>
+        <b>Claude (Anthropic)</b>
+      </a>
+    </td>
   </tr>
 </table>
 
