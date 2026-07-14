@@ -312,7 +312,6 @@ private fun CheckingOverlay(lang: AppLang) {
         StaggeredColumn(perItemDelayMs = 70) {
             Item {
                 ShinyLogo(
-                    rtl = lang == AppLang.AR,
                     modifier = Modifier.size(96.dp)
                 )
             }
@@ -348,7 +347,6 @@ private fun CheckingOverlay(lang: AppLang) {
  */
 @Composable
 private fun ShinyLogo(
-    rtl: Boolean,
     modifier: Modifier = Modifier
 ) {
     Image(

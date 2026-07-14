@@ -462,7 +462,7 @@ class CheckerRepository {
      * prevents a spurious "0" from overwriting a previously received real
      * count and restarting the UI counter.
      */
-    private fun fetchArrayCount(url: String): String {
+    private suspend fun fetchArrayCount(url: String): String {
         val request = Request.Builder()
             .url(url)
             .addIptvHeaders(accept = "application/json, text/plain, */*")
@@ -475,11 +475,7 @@ class CheckerRepository {
             } catch (_: Exception) {
                 // Retryable transport failure: wait briefly then try again.
                 if (attempt < MAX_COUNT_RETRIES - 1) {
-                    try {
-                        Thread.sleep(COUNT_RETRY_BACKOFF_MS.toLong())
-                    } catch (_: InterruptedException) {
-                        Thread.currentThread().interrupt()
-                    }
+                    kotlinx.coroutines.delay(COUNT_RETRY_BACKOFF_MS.toLong())
                 }
             }
         }

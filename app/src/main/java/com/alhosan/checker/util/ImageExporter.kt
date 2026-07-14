@@ -7,17 +7,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import com.alhosan.checker.data.model.AppLang
-import com.alhosan.checker.data.model.Subscription
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.OutputStream
 
 /**
- * Image exporter — renders the result as a high-quality PNG and saves it to
- * Pictures/AlHosan.
+ * Image exporter — saves a Bitmap as PNG to Pictures/AlHosan.
  *
- * File naming rule requested by the user:
+ * File naming rule:
  *   username.png
  *   username (1).png
  *   username (2).png
@@ -27,36 +24,6 @@ object ImageExporter {
 
     private const val EXPORT_DIR_NAME = "AlHosan"
     private const val PNG_MIME_TYPE = "image/png"
-
-    /**
-     * Render the [subscription] data to a PNG image and save it to the gallery.
-     * Safe to call from any coroutine; rendering and IO are moved off the UI thread.
-     */
-    suspend fun saveSubscriptionToGallery(
-        context: Context,
-        subscription: Subscription,
-        lang: AppLang,
-        fileName: String = ""
-    ): Boolean {
-        return try {
-            val bitmap = withContext(Dispatchers.Default) {
-                ResultImageRenderer.render(subscription, lang)
-            }
-
-            try {
-                withContext(Dispatchers.IO) {
-                    val baseName = fileName.ifBlank { subscription.username }.ifBlank { "AlHosan" }
-                    saveBitmapToGallery(context, bitmap, baseName)
-                }
-            } finally {
-                bitmap.recycle()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
     /**
      * Save a raw Android Bitmap as PNG to the gallery.
      * [fileName] is the base name without extension; .png is always applied.
