@@ -314,11 +314,14 @@ private fun HistoryItemRow(
                         modifier = Modifier.size(12.dp)
                     )
                     Text(
-                        text = if (item.isM3uMode && item.m3uLink.isNotBlank()) {
-                            item.m3uLineForDisplay()
-                        } else {
-                            item.host
-                        }.take(40) + if ((if (item.isM3uMode) item.m3uLink.length else item.host.length) > 40) "…" else "",
+                        text = run {
+                            val raw = if (item.isM3uMode && item.m3uLink.isNotBlank()) {
+                                item.m3uLink.m3uLineForDisplay()
+                            } else {
+                                item.host
+                            }
+                            raw.take(40) + if (raw.length > 40) "…" else ""
+                        },
                         color = TextDim,
                         fontSize = 12.sp,
                         maxLines = 1,
