@@ -12,6 +12,8 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import java.io.BufferedReader
+import java.io.PushbackInputStream
+import java.io.StringReader
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -604,27 +606,49 @@ class CheckerRepository {
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw java.io.IOException("HTTP error ${response.code}")
             val body = response.body ?: throw java.io.IOException("Null body")
+            val stream = body.byteStream()
 
-            // Decision: peek the first non-whitespace/non-BOM byte WITHOUT
-            // consuming the body permanently, so body.string() / charStream()
-            // below still receive the complete payload.
-            val contentType = body.contentType()
-            val peekBytes = body.peekBody(64).bytes()
+            // Read the first ~128 bytes looking for the first non-whitespace
+            // character so we can decide whether this is a JSON array (stream
+            // count) or a JSON object wrapper (buffer + regex). We do this
+            // with a PushbackInputStream-like buffered reader so we can push
+            // the already-read bytes back into the stream for the streaming
+            // counter / body.string() to still see the full payload.
+            val pushback = java.io.PushbackInputStream(stream, 256)
+            val prefixBytes = ByteArray(256)
+            var prefixLen = 0
             var first: Char = Char.MIN_VALUE
-            var sawAnything = false
-            for (b in peekBytes) {
-                val i = b.toInt() and 0xFF
-                if (i == 0xEF) continue // BOM starting byte — skip
-                if (i.toChar().isWhitespace()) continue
-                first = i.toChar()
-                sawAnything = true
+            var sawFirst = false
+            var lookingForBom = true
+
+            while (prefixLen < prefixBytes.size) {
+                val b = pushback.read()
+                if (b == -1) break
+                prefixBytes[prefixLen++] = b.toByte()
+                val ch = b.toChar()
+                if (ch == '\uFEFF' && prefixLen == 1) continue // strip BOM
+                if (ch.isWhitespace()) continue
+                first = ch
+                sawFirst = true
                 break
             }
-            if (!sawAnything) return 0
+            // Push back whatever we read so downstream sees the full body.
+            if (prefixLen > 0) {
+                pushback.unread(prefixBytes, 0, prefixLen)
+            }
+
+            if (!sawFirst) return 0
 
             return when (first) {
-                '[' -> body.charStream().use { countFirstJsonArrayElements(it) }
-                '{' -> parseCountFromJsonObject(body.string())
+                '[' ->
+                    pushback.bufferedReader(Charsets.UTF_8).use {
+                        countFirstJsonArrayElements(it)
+                    }
+                '{' -> {
+                    // Object wrapper → materialize full body (these are small).
+                    val fullText = pushback.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                    parseCountFromJsonObject(fullText)
+                }
                 else -> throw java.io.IOException("Response is not JSON")
             }
         }
@@ -764,8 +788,9 @@ class CheckerRepository {
 
         // Fall back: count top-level object keys crudely as items (some older
         // panels return {id: {info...}, id2:{...}} instead of an array).
-        val sectionMatch = Regex("""\{(.+)\}""", setOf(RegexOption.DOT_MATCHES_EVERYTHING))
-            .find(body.trim()) ?: return 0
+        val sectionMatch = Regex("""\{(.+)\}""",
+            setOf(RegexOption.DOT_MATCHES_ALL)
+        ).find(body.trim()) ?: return 0
         val inner = sectionMatch.groupValues[1]
         var depth = 0
         var inStr = false
