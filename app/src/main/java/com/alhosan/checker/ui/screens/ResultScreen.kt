@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.SignalCellularAlt
@@ -113,6 +114,7 @@ fun ResultScreen(
     val toastMessage by viewModel.toastMessage.collectAsState()
     val isCounting by viewModel.isCounting.collectAsState()
     val isFromHistory by viewModel.isFromHistory.collectAsState()
+    val isChecking by viewModel.isChecking.collectAsState()
     val subscription = (state as? CheckerState.Success)?.subscription
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -127,14 +129,6 @@ fun ResultScreen(
     // which is why restoring from history and pressing back jumped to login.
     if (subscription == null) {
         return
-    }
-
-    // Clear toast after delay
-    LaunchedEffect(toastMessage) {
-        if (toastMessage != null) {
-            delay(2500)
-            viewModel.clearToast()
-        }
     }
 
     val iconAtRight = lang == AppLang.AR
@@ -234,20 +228,29 @@ fun ResultScreen(
                 onCopyValue = copyResultValue
             )
 
-            // ─── Action row: Save (hidden for restored items), M3U, Export Image ───
+            // ─── Action row: Save / Refresh + M3U + Export ───
+            // Uses Arrangement.spacedBy with small gap and equal-ish weights so
+            // the row fits within the card's horizontal padding (no overflow).
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Save button — hidden when viewing a restored history item (matches HTML)
-                if (!isFromHistory) {
-                    Box(modifier = Modifier.weight(1.5f)) {
+                // Primary button: Save for fresh checks, Refresh for restored items
+                Box(modifier = Modifier.weight(1f)) {
+                    if (!isFromHistory) {
                         AlHosanMainButton(
                             text = lang.btnS,
                             icon = Icons.Default.Save,
                             onClick = { viewModel.saveToHistory() }
+                        )
+                    } else {
+                        AlHosanMainButton(
+                            text = if (lang == AppLang.AR) "تحديث" else "Refresh",
+                            icon = Icons.Default.Refresh,
+                            onClick = { viewModel.refreshFromHistory() },
+                            isLoading = isChecking
                         )
                     }
                 }
@@ -267,9 +270,8 @@ fun ResultScreen(
                     )
                 }
 
-                // Export as image button — captures only the result area exactly
-                // as displayed, excluding header and lower action buttons.
-                Box(modifier = Modifier.weight(if (isFromHistory) 1.5f else 1f)) {
+                // Export as image button
+                Box(modifier = Modifier.weight(1f)) {
                     AlHosanMainButton(
                         text = lang.btnE,
                         icon = Icons.Default.PhotoCamera,

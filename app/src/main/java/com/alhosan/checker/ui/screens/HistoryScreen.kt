@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.History
@@ -79,14 +78,6 @@ fun HistoryScreen(
     // Handle system back button / gesture — matches HTML's handleAndroidBack
     BackHandler(enabled = true) {
         onBack()
-    }
-
-    // Clear toast after delay
-    LaunchedEffect(toastMessage) {
-        if (toastMessage != null) {
-            kotlinx.coroutines.delay(2500)
-            viewModel.clearToast()
-        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Black)) {
@@ -191,7 +182,7 @@ fun HistoryScreen(
                                         }
                                     }
                                 )
-                                Spacer(modifier = Modifier.height(14.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
                         }
                     }
@@ -250,68 +241,65 @@ private fun HistoryItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF050505), RoundedCornerShape(18.dp))
-            .border(1.dp, BorderGold, RoundedCornerShape(18.dp))
+            .background(Color(0xFF050505), RoundedCornerShape(16.dp))
+            .border(1.dp, BorderGold, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left side: status dot + content column
+        // Left: status dot + content column
         Row(
             modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Status dot — top aligned
+            // Status dot
             Box(
                 modifier = Modifier
-                    .padding(top = 6.dp)
-                    .size(9.dp)
+                    .size(8.dp)
                     .background(
                         if (item.isActive) GreenActive else RedInactive,
                         CircleShape
                     )
             )
 
-            // Content column: Username → Server → Saved date
+            // Content column: Username → Server → Saved date (compact)
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.Start
             ) {
-                // Row 1: Username (bold)
+                // Row 1: Username
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
                         tint = Gold,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(12.dp)
                     )
                     Text(
                         text = item.user.ifBlank { if (lang == AppLang.AR) "(بلا اسم)" else "(no user)" },
                         color = Color.White,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(modifier = Modifier.height(3.dp))
-
-                // Row 2: Server/host with Dns icon
+                // Row 2: Server/host
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Dns,
                         contentDescription = null,
                         tint = TextDim,
-                        modifier = Modifier.size(12.dp)
+                        modifier = Modifier.size(11.dp)
                     )
                     Text(
                         text = run {
@@ -320,32 +308,31 @@ private fun HistoryItemRow(
                             } else {
                                 item.host
                             }
-                            raw.take(40) + if (raw.length > 40) "…" else ""
+                            raw.take(38) + if (raw.length > 38) "…" else ""
                         },
                         color = TextDim,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                // Row 3: Saved date with CalendarToday icon (only if present)
+                // Row 3: Saved date — uses Save icon (green) matching result screen
                 if (item.time.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(3.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CalendarToday,
+                            imageVector = Icons.Default.Save,
                             contentDescription = null,
-                            tint = Gold.copy(alpha = 0.8f),
-                            modifier = Modifier.size(12.dp)
+                            tint = GreenActive,
+                            modifier = Modifier.size(11.dp)
                         )
                         Text(
                             text = item.time,
-                            color = Gold.copy(alpha = 0.85f),
-                            fontSize = 11.sp,
+                            color = GreenActive.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -353,10 +340,10 @@ private fun HistoryItemRow(
             }
         }
 
-        // Right side: Delete button (compact)
+        // Right: Delete button
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(30.dp)
                 .clip(CircleShape)
                 .clickable(onClick = onDelete),
             contentAlignment = Alignment.Center
@@ -365,7 +352,7 @@ private fun HistoryItemRow(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete",
                 tint = RedInactive.copy(alpha = 0.85f),
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(16.dp)
             )
         }
     }

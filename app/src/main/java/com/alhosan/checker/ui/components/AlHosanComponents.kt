@@ -697,7 +697,7 @@ fun AlHosanMainButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(50.dp)
             .then(
                 if (border != null) Modifier.border(border, RoundedCornerShape(22.dp))
                 else Modifier
@@ -720,22 +720,23 @@ fun AlHosanMainButton(
             Row(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.padding(horizontal = 8.dp)
             ) {
                 if (icon != null) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = iconColor,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(17.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(
                     text = text,
                     color = textColor,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 15.sp
+                    fontSize = 13.sp,
+                    maxLines = 1
                 )
             }
         }

@@ -4,9 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
@@ -36,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -136,16 +141,25 @@ fun AlHosanApp() {
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            NavHost(
-                navController = navController,
-                startDestination = "splash",
-                // Content enters from right to left, exits left to right.
-                // The header/back button above remains fixed.
-                enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
-                exitTransition = { alHosanStaggeredExit(durationMs = 300) },
-                popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
-                popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
+            // Crossfade content whenever the language changes so text and icons
+            // don't snap — they fade out the old language and fade in the new
+            // one smoothly.
+            val currentLang by viewModel.lang.collectAsState()
+            androidx.compose.animation.Crossfade(
+                targetState = currentLang,
+                animationSpec = tween(durationMillis = 320),
+                label = "lang-crossfade"
             ) {
+                NavHost(
+                    navController = navController,
+                    startDestination = "splash",
+                    // Content enters from right to left, exits left to right.
+                    // The header/back button above remains fixed.
+                    enterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+                    exitTransition = { alHosanStaggeredExit(durationMs = 300) },
+                    popEnterTransition = { alHosanStaggeredEnter(durationMs = 420) },
+                    popExitTransition = { alHosanStaggeredExit(durationMs = 300) }
+                ) {
                 composable("splash") {
                     SplashScreen(
                         onSplashComplete = {
@@ -180,7 +194,8 @@ fun AlHosanApp() {
                         viewModel = viewModel
                     )
                 }
-            }
+                } // end NavHost
+            } // end Crossfade
         }
     }
 }
@@ -210,50 +225,64 @@ fun ScreenHeader(
     onBack: () -> Unit,
     onLangToggle: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 14.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Back-language slot: on inner screens it shows Back; on the main
-        // screen it shows Language in the exact same physical position.
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showBack,
-                enter = slideInHorizontally(animationSpec = tween(220)) { -it / 2 } + fadeIn(tween(180)),
-                exit = slideOutHorizontally(animationSpec = tween(180)) { -it / 2 } + fadeOut(tween(140))
-            ) {
-                CircleHeaderButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = Gold,
-                        modifier = Modifier.size(18.dp)
-                    )
+    // Fixed physical positions regardless of language / RTL:
+    //   - LEFT  (absolute, LTR start): Back arrow on inner screens, empty on login
+    //   - RIGHT (absolute, LTR end):   Language globe (always on the right)
+    // Using CompositionLocalProvider to force LTR on this Row means "Start" is
+    // always the physical left and "End" is always the physical right for both
+    // Arabic and English, so the globe never jumps to the opposite side.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left slot: back arrow (inner screens) or empty (login)
+            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showBack,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
+                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
+                ) {
+                    // The arrow visually points to the real left (back direction)
+                    // regardless of language; for RTL users, mirror the icon
+                    // visually so it still points "back" (towards the right
+                    // edge in RTL).
+                    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == LayoutDirection.Rtl
+                    CircleHeaderButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Gold,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer { scaleX = if (isRtl) -1f else 1f }
+                        )
+                    }
                 }
             }
 
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showLang && !showBack,
-                enter = slideInHorizontally(animationSpec = tween(220)) { -it / 2 } + fadeIn(tween(180)),
-                exit = slideOutHorizontally(animationSpec = tween(180)) { -it / 2 } + fadeOut(tween(140))
-            ) {
-                CircleHeaderButton(onClick = onLangToggle) {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Language",
-                        tint = Gold,
-                        modifier = Modifier.size(18.dp)
-                    )
+            // Right slot: language globe — ALWAYS on the physical right
+            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showLang,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
+                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
+                ) {
+                    CircleHeaderButton(onClick = onLangToggle) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = "Language",
+                            tint = Gold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
-
-        // Opposite side stays empty so the header keeps balanced spacing.
-        Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) { }
     }
 }
 

@@ -154,13 +154,6 @@ fun LoginScreen(
         }
     }
 
-    LaunchedEffect(toastMessage) {
-        if (toastMessage != null) {
-            kotlinx.coroutines.delay(2500)
-            viewModel.clearToast()
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()

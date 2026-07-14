@@ -118,12 +118,22 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         prefs.edit().putInt("lang", newLang.ordinal).apply()
     }
 
-    // ─── Toast helper ───
+    // ─── Toast helper — auto-clears after 2200ms; new toast cancels previous ─
+    private var toastJob: kotlinx.coroutines.Job? = null
+
     fun showToast(message: String) {
+        toastJob?.cancel()
         _toastMessage.value = message
+        toastJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(2200)
+            _toastMessage.value = null
+            toastJob = null
+        }
     }
 
     fun clearToast() {
+        toastJob?.cancel()
+        toastJob = null
         _toastMessage.value = null
     }
 
@@ -420,13 +430,20 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         )
 
         val logs = _history.value.toMutableList()
-        val exists = logs.indexOfFirst { it.host == item.host && it.user == item.user }
+        val exists = logs.indexOfFirst { it.host == item.host && it.user == item.user && it.pass == item.pass }
+        val wasUpdated = exists != -1
         if (exists != -1) logs.removeAt(exists)
         logs.add(0, item)
 
         _history.value = logs.take(30)
         saveHistory()
-        showToast(_lang.value.tS)
+        showToast(
+            if (wasUpdated) {
+                if (_lang.value == AppLang.AR) "تم تحديث الاشتراك" else "Subscription updated"
+            } else {
+                _lang.value.tS
+            }
+        )
     }
 
     /**
@@ -449,6 +466,31 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         _history.value = emptyList()
         saveHistory()
         showToast(_lang.value.tClear)
+    }
+
+    /**
+     * Refresh / re-check the currently-displayed (restored) subscription in place.
+     * Used by the Refresh button on the result screen when a saved item is open.
+     * Populates the input fields so checkSubscription() uses those credentials,
+     * then runs a fresh check on the same screen. On success the history item's
+     * saved timestamp is updated automatically via saveToHistory().
+     */
+    fun refreshFromHistory() {
+        val sub = (_state.value as? CheckerState.Success)?.subscription ?: return
+        // Seed the input fields so checkSubscription() picks them up
+        if (sub.isM3uMode) {
+            _checkMode.value = CheckMode.M3U
+            _m3uLink.value = sub.m3uLink
+        } else {
+            _checkMode.value = CheckMode.XTREAM
+            _host.value = sub.host
+            _username.value = sub.username
+            _password.value = sub.password
+        }
+        // Clear isFromHistory so the Save button becomes visible again after the check
+        _isFromHistory.value = false
+        lastSavedHash = ""
+        checkSubscription()
     }
 
     /**
