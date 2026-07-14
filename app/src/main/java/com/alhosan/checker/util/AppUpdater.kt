@@ -290,6 +290,8 @@ object AppUpdater {
     }
 
     private fun parseVersionName(tagName: String, name: String?): String {
-        return name?.takeIf { it.isNotBlank() } ?: tagName.trimStart('v', 'V')
+        val raw = name?.takeIf { it.isNotBlank() } ?: tagName
+        // Strip leading 'v'/'V' so callers can prepend their own "v" consistently.
+        return raw.trimStart('v', 'V').trim()
     }
 }
