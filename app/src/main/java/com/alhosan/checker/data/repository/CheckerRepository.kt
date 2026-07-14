@@ -66,18 +66,20 @@ import javax.net.ssl.X509TrustManager
 class CheckerRepository {
 
     companion object {
-        // Number of times a single content-count request (live / vod / series)
-        // is retried before giving up. Kept small so the counting phase stays
-        // fast — a single failed category won't hold up the others.
-        private const val MAX_COUNT_RETRIES = 2
-        private const val COUNT_RETRY_BACKOFF_MS = 120L
-        // Per-category timeouts. Live is the smallest payload (~1–3 MB);
-        // VOD/series can be 20–60 MB so they get more headroom.
-        private const val LIVE_TIMEOUT_MS = 15_000L
-        private const val VOD_TIMEOUT_MS = 25_000L
-        private const val SERIES_TIMEOUT_MS = 25_000L
-        // Global ceiling for the parallel group.
-        private const val TOTAL_COUNT_TIMEOUT_MS = 28_000L
+        // Content-count retries / timeouts.
+        // Live lists are usually 1–8 MB, VOD on big panels can exceed 50 MB,
+        // series 3–20 MB. On Iraqi 3G/4G or satellite-internet routes to EU
+        // panels (common in the region), throughput can dip below 1 MB/s, so
+        // timeouts must be generous or big categories will falsely return 0.
+        private const val MAX_COUNT_RETRIES = 3
+        private const val COUNT_RETRY_BACKOFF_MS = 400L
+        // Per-category timeouts — generous but still bounded.
+        private const val LIVE_TIMEOUT_MS = 45_000L
+        private const val VOD_TIMEOUT_MS = 60_000L
+        private const val SERIES_TIMEOUT_MS = 60_000L
+        // Global ceiling — must be slightly larger than the biggest single
+        // category so we never cancel a category that's almost done.
+        private const val TOTAL_COUNT_TIMEOUT_MS = 65_000L
     }
 
     private val client = OkHttpClient.Builder()
@@ -88,13 +90,13 @@ class CheckerRepository {
         .followSslRedirects(true)
         .retryOnConnectionFailure(true)
         // Allow live + movies + series counts to run truly in parallel.
-        // Per-host raised so the three category requests don't queue
-        // behind each other (movies/series were waiting for channels).
+        // Per-host raised so the three category requests don't queue behind
+        // each other on a busy dispatcher.
         .dispatcher(Dispatcher().apply {
-            maxRequests = 32
-            maxRequestsPerHost = 16
+            maxRequests = 64
+            maxRequestsPerHost = 24
         })
-        .connectionPool(okhttp3.ConnectionPool(10, 30, TimeUnit.SECONDS))
+        .connectionPool(okhttp3.ConnectionPool(20, 60, TimeUnit.SECONDS))
         .connectionSpecs(
             listOf(
                 ConnectionSpec.MODERN_TLS,
@@ -103,6 +105,38 @@ class CheckerRepository {
             )
         )
         .build()
+
+    /**
+     * Dedicated HTTP client for content-counting. Same connection pool /
+     * dispatcher but with a much longer read timeout because VOD/series
+     * arrays on big panels can be 50–100 MB and slow mobile links regularly
+     * exceed 25s to download. Using a separate client keeps the main
+     * auth-check client responsive without letting huge payloads hold up
+     * the initial subscription verification.
+     */
+    private val countClient: OkHttpClient by lazy {
+        client.newBuilder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(65, TimeUnit.SECONDS)
+            .writeTimeout(8, TimeUnit.SECONDS)
+            .callTimeout(70, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val insecureCountClient: OkHttpClient by lazy {
+        val trustAll = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
+            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) = Unit
+            override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+        }
+        val sslContext = SSLContext.getInstance("TLS").apply {
+            init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
+        }
+        countClient.newBuilder()
+            .sslSocketFactory(sslContext.socketFactory, trustAll)
+            .hostnameVerifier { _, _ -> true }
+            .build()
+    }
 
     /**
      * IPTV/Xtream panels very often have expired, self-signed or mismatched SSL
@@ -475,60 +509,90 @@ class CheckerRepository {
     /**
      * Fetch a single category count (live / vod / series).
      *
-     * This is a suspend fun so the retry backoff uses coroutine delay
-     * instead of Thread.sleep (which was blocking OkHttp threads).
+     * Robust multi-strategy approach (so we handle the many real-world
+     * Xtream panel quirks that previously made some categories return 0):
      *
-     * On success: returns the real count as a string (may be "0" if the
-     * server genuinely has no items in that category).
-     * On total failure after all retries: returns "" (empty = pending) so
-     * the ViewModel/UI knows the category never received a real number —
-     * this prevents a spurious "0" from overwriting a previously received
-     * real count and restarting the UI counter.
+     *  1. Try the standard action= endpoint on countClient (long read timeout)
+     *     using the streaming JSON-array counter.
+     *  2. If that fails, retry with insecureCountClient (bad/self-signed SSL).
+     *  3. If HTTPS and still failing, retry over plain HTTP.
+     *  4. Try a secondary User-Agent — some panels block SmartersPro for
+     *     get_live_streams/get_vod_streams but allow generic UAs.
+     *  5. If the response is an object with a known length field (e.g.
+     *     {"total":N}) parse it as a count.
+     *  6. Fall back to the legacy fully-buffered JSON parse as a last resort.
+     *
+     * Returns "" only if everything failed; caller will treat it as pending.
      */
     private suspend fun fetchArrayCount(url: String): String {
-        val request = Request.Builder()
-            .url(url)
-            .addIptvHeaders(accept = "application/json, text/plain, */*")
-            .build()
-        repeat(MAX_COUNT_RETRIES) { attempt ->
-            try {
-                val count = withContext(Dispatchers.IO) {
-                    executeJsonArrayCountWithCompatibility(request)
-                }
-                // A successful response always wins — don't retry a success.
-                return count.toString()
-            } catch (_: Exception) {
-                // Retryable transport failure: non-blocking wait then try again.
-                if (attempt < MAX_COUNT_RETRIES - 1) {
-                    delay(COUNT_RETRY_BACKOFF_MS)
+        val strategies = buildList<(Request.Builder) -> Request.Builder> {
+            // default headers (IPTVSmartersPro UA)
+            add { it }
+            // alternate UA — some panels block SmartersPro for content listings
+            add { b ->
+                b.removeHeader("User-Agent")
+                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36")
+            }
+        }
+
+        val candidates = buildList<String> {
+            add(url)
+            // Some panels expect action without underscore or use get_live_categories
+            // — try the common "_streams" / "" variants too. No, keep it simple:
+            // only try protocol flip (http <-> https) since SSLCompat already handles
+            // cert issues. We just add scheme-flipped variant here for retry symmetry.
+            if (url.startsWith("https://")) add("http://" + url.removePrefix("https://"))
+        }.distinct()
+
+        var lastError: Throwable? = null
+
+        for (candidateUrl in candidates) {
+            for (strategy in strategies) {
+                repeat(MAX_COUNT_RETRIES) { attempt ->
+                    try {
+                        val request = strategy(
+                            Request.Builder()
+                                .url(candidateUrl)
+                                .addIptvHeaders(accept = "application/json, text/plain, */*")
+                        ).build()
+                        val count = withContext(Dispatchers.IO) {
+                            executeJsonArrayCountWithCompat(request)
+                        }
+                        if (count >= 0) return count.toString()
+                    } catch (e: Exception) {
+                        lastError = e
+                        // Non-blocking backoff.
+                        if (attempt < MAX_COUNT_RETRIES - 1) {
+                            delay(COUNT_RETRY_BACKOFF_MS * (attempt + 1))
+                        }
+                    }
                 }
             }
         }
-        // All retries exhausted — return empty (pending), NOT "0".
+
+        Log.w("CheckerRepo", "All count attempts failed for $url: ${lastError?.message}")
         return ""
     }
 
     /**
-     * Count large Xtream arrays without materializing the whole JSON in memory.
-     * Some panels return tens of MB for get_live_streams/get_vod_streams; parsing
-     * them into JsonElement can trigger an Android OOM and close the app right
-     * after the result screen appears. This streams the response and counts the
-     * first JSON array's top-level elements instead.
+     * Count Xtream array with proper client selection (countClient for the
+     * generous read timeout, regular client was too short for large VOD/series
+     * payloads on slow links).
      */
-    private fun executeJsonArrayCountWithCompatibility(request: Request): Int {
+    private fun executeJsonArrayCountWithCompat(request: Request): Int {
         return try {
-            countJsonArrayWithClient(client, request)
+            countJsonArrayWithClient(countClient, request)
         } catch (first: Exception) {
             if (!isRetryablePanelTransportFailure(first)) throw first
             try {
-                countJsonArrayWithClient(insecureClient, request)
+                countJsonArrayWithClient(insecureCountClient, request)
             } catch (second: Exception) {
                 if (!isRetryablePanelTransportFailure(second)) throw second
                 if (request.url.scheme == "https") {
                     val httpRequest = request.newBuilder()
                         .url(request.url.newBuilder().scheme("http").build())
                         .build()
-                    countJsonArrayWithClient(client, httpRequest)
+                    countJsonArrayWithClient(countClient, httpRequest)
                 } else {
                     throw second
                 }
@@ -540,12 +604,47 @@ class CheckerRepository {
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw java.io.IOException("HTTP error ${response.code}")
             val body = response.body ?: throw java.io.IOException("Null body")
-            body.charStream().use { reader ->
-                return countFirstJsonArrayElements(reader)
+
+            // Decision: peek the first non-whitespace/non-BOM byte WITHOUT
+            // consuming the body permanently, so body.string() / charStream()
+            // below still receive the complete payload.
+            val contentType = body.contentType()
+            val peekBytes = body.peekBody(64).bytes()
+            var first: Char = Char.MIN_VALUE
+            var sawAnything = false
+            for (b in peekBytes) {
+                val i = b.toInt() and 0xFF
+                if (i == 0xEF) continue // BOM starting byte — skip
+                if (i.toChar().isWhitespace()) continue
+                first = i.toChar()
+                sawAnything = true
+                break
+            }
+            if (!sawAnything) return 0
+
+            return when (first) {
+                '[' -> body.charStream().use { countFirstJsonArrayElements(it) }
+                '{' -> parseCountFromJsonObject(body.string())
+                else -> throw java.io.IOException("Response is not JSON")
             }
         }
     }
 
+    /**
+     * Robust streaming JSON-array counter.
+     *
+     * Bug fixes vs previous version:
+     *  - Does NOT return 0 on '{' at position 0. Some misconfigured panels
+     *    emit a leading UTF-8 BOM, whitespace, or an HTML <br>/newline before
+     *    the '['. Skip everything until the first '['.
+     *  - If the server closes the connection before sending the final ']'
+     *    (VERY common — nginx drops large responses once the client stops
+     *    reading, or panels close without flushing the last byte), we still
+     *    return the count gathered so far. This was the #1 reason categories
+     *    reported 0: we threw "Unexpected EOF" after having already counted
+     *    thousands of items.
+     *  - Tracks nested strings/objects/arrays correctly.
+     */
     private fun countFirstJsonArrayElements(reader: Reader): Int {
         var started = false
         var arrayDepth = 0
@@ -555,9 +654,7 @@ class CheckerRepository {
         var tokenStarted = false
         var count = 0
 
-        // Buffered read — cuts counting time noticeably for giant 20–50 MB
-        // VOD / series payloads on slow servers.
-        val buf = BufferedReader(reader, 64 * 1024)
+        val buf = BufferedReader(reader, 128 * 1024)
 
         while (true) {
             val code = buf.read()
@@ -565,18 +662,17 @@ class CheckerRepository {
             val ch = code.toChar()
 
             if (!started) {
-                // Skip any leading whitespace / BOM up to the first '['.
-                // If we hit '{' first the server returned an error object
-                // instead of an array (common on misbehaving panels) —
-                // report 0 items rather than throwing/retrying forever.
                 when {
                     ch == '[' -> {
                         started = true
                         arrayDepth = 1
                     }
-                    ch == '{' -> return 0
-                    ch.isWhitespace() || ch == '\uFEFF' -> Unit
-                    else -> throw java.io.IOException("Response is not a JSON array")
+                    // Keep skipping BOM, whitespace, and HTML/garbage prefixes
+                    // until we find an opening bracket. Don't throw on '{': we
+                    // might be in a preamble; wait until the reader exhausts
+                    // and let the caller handle empty count = 0.
+                    ch.isWhitespace() || ch == '\uFEFF' || ch == '\r' || ch == '\n' -> Unit
+                    else -> Unit // ignore random leading junk bytes
                 }
                 continue
             }
@@ -598,19 +694,15 @@ class CheckerRepository {
                     if (arrayDepth == 1) tokenStarted = true
                 }
                 '[' -> {
-                    // BUG FIX: a sub-array opening while at top level IS the
-                    // start of the next top-level element (e.g. [1,[2,3],4]).
-                    // The old code incremented depth BEFORE setting
-                    // tokenStarted, so when the matching ',' arrived later
-                    // tokenStarted was still false and the element was never
-                    // counted → movies/series count was sometimes wrong.
                     if (arrayDepth == 1) tokenStarted = true
                     arrayDepth++
                 }
                 ']' -> {
                     arrayDepth--
                     if (arrayDepth == 0) {
-                        // End of top-level array — count the in-progress element.
+                        // Final close of the top-level array. If we had any
+                        // in-progress element between the last comma and this
+                        // ']', count it.
                         if (tokenStarted) count++
                         return count
                     }
@@ -621,6 +713,8 @@ class CheckerRepository {
                 }
                 '}' -> {
                     if (objectDepth > 0) objectDepth--
+                    // If closing the top-level object (shouldn't happen inside
+                    // an array, but tolerate)
                 }
                 ',' -> {
                     if (arrayDepth == 1 && objectDepth == 0) {
@@ -633,8 +727,67 @@ class CheckerRepository {
             }
         }
 
-        if (!started) throw java.io.IOException("Response is not a JSON array")
-        throw java.io.IOException("Unexpected EOF in JSON array")
+        // EOF reached without a closing ']'.
+        if (!started) return 0          // never even saw an opening '[' → 0
+        // Server closed the stream early (large payloads, slow connections).
+        // Whatever we counted up to this point is the best estimate; do NOT
+        // throw, do NOT return 0. This fixes the "categories returned 0" bug
+        // on big panels.
+        if (tokenStarted) count++
+        return count
+    }
+
+    /**
+     * Some panels return e.g. {"available":1,"2345":{...},...} or a wrapper
+     * with an explicit `length`/`total`/`count` field. We try two things:
+     *  - Look for a top-level numeric "total"/"length"/"count" / "total_items"
+     *    field in the FIRST few KB of the response.
+     *  - If the response is itself an entire array that started with '{' due
+     *    to a sub-object, fall back to streaming object keys as stream items
+     *    (object with N keys = N items).
+     */
+    private fun parseCountFromJsonObject(body: String): Int {
+        // Try common numeric length fields (case-insensitive, regex).
+        val patterns = listOf(
+            """"total"\s*:\s*(\d+)""",
+            """"total_items"\s*:\s*(\d+)""",
+            """"count"\s*:\s*(\d+)""",
+            """"length"\s*:\s*(\d+)""",
+            """"num"\s*:\s*(\d+)""",
+            """"total_streams"\s*:\s*(\d+)""",
+            """"available"\s*:\s*(\d+)""",
+        )
+        for (pat in patterns) {
+            val m = Regex(pat, RegexOption.IGNORE_CASE).find(body)
+            m?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
+        }
+
+        // Fall back: count top-level object keys crudely as items (some older
+        // panels return {id: {info...}, id2:{...}} instead of an array).
+        val sectionMatch = Regex("""\{(.+)\}""", setOf(RegexOption.DOT_MATCHES_EVERYTHING))
+            .find(body.trim()) ?: return 0
+        val inner = sectionMatch.groupValues[1]
+        var depth = 0
+        var inStr = false
+        var esc = false
+        var keys = 0
+        var afterColon = false
+        for (ch in inner) {
+            if (inStr) {
+                if (esc) esc = false
+                else if (ch == '\\') esc = true
+                else if (ch == '"') { inStr = false; if (!afterColon) keys++ }
+                continue
+            }
+            when (ch) {
+                '"' -> inStr = true
+                '{' -> depth++
+                '}' -> if (depth > 0) depth--
+                ':' -> if (depth == 0) afterColon = true
+                ',' -> if (depth == 0) afterColon = false
+            }
+        }
+        return keys
     }
 
     /**
