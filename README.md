@@ -121,20 +121,20 @@ al-hosan-checker/
       </a>
     </td>
     <td align="center">
-      <a href="https://z.ai">
-        <img src="screenshots/contrib-super-z.jpg" width="120" alt="Super Z" /><br/>
+      <a href="https://chat.z.ai/">
+        <img src="screenshots/contrib-super-z.png" width="120" alt="Super Z" /><br/>
         <b>Super Z</b>
       </a>
     </td>
     <td align="center">
-      <a href="https://lmarena.ai">
-        <img src="screenshots/contrib-lm-arena.jpg" width="120" alt="lm Arena" /><br/>
+      <a href="https://arena.ai/agent">
+        <img src="screenshots/contrib-arena.png" width="120" alt="lm Arena" /><br/>
         <b>lm Arena</b>
       </a>
     </td>
     <td align="center">
-      <a href="https://github.com/claude">
-        <img src="https://avatars.githubusercontent.com/u/76263028?s=120" width="120" alt="Claude" /><br/>
+      <a href="https://claude.ai/new">
+        <img src="screenshots/contrib-claude.png" width="120" alt="Claude" /><br/>
         <b>Claude</b>
       </a>
     </td>
