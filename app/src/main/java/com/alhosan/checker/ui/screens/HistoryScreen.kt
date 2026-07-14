@@ -21,8 +21,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -233,7 +237,8 @@ fun HistoryScreen(
 }
 
 /**
- * Single history item row - matching HTML reference's .history-item
+ * Single history item row - compact layout with theme icons
+ * Order: username (title) → server (with Dns icon) → saved date (with CalendarToday icon)
  */
 @Composable
 private fun HistoryItemRow(
@@ -245,66 +250,110 @@ private fun HistoryItemRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF050505), RoundedCornerShape(24.dp))
-            .border(1.dp, BorderGold, RoundedCornerShape(24.dp))
+            .background(Color(0xFF050505), RoundedCornerShape(18.dp))
+            .border(1.dp, BorderGold, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 18.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left side: status dot + text
+        // Left side: status dot + content column
         Row(
             modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Status dot
+            // Status dot — top aligned
             Box(
                 modifier = Modifier
-                    .size(10.dp)
+                    .padding(top = 6.dp)
+                    .size(9.dp)
                     .background(
                         if (item.isActive) GreenActive else RedInactive,
                         CircleShape
                     )
             )
 
-            // Host + username + saved time
+            // Content column: Username → Server → Saved date
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.Start
             ) {
-                Text(
-                    text = item.host.take(35) + if (item.host.length > 35) "…" else "",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = item.user,
-                    color = TextDim,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (item.time.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = if (lang == AppLang.AR) "🗓  ${item.time}" else "🗓  ${item.time}",
-                        color = Gold.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
+                // Row 1: Username (bold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Gold,
+                        modifier = Modifier.size(13.dp)
                     )
+                    Text(
+                        text = item.user.ifBlank { if (lang == AppLang.AR) "(بلا اسم)" else "(no user)" },
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                // Row 2: Server/host with Dns icon
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Dns,
+                        contentDescription = null,
+                        tint = TextDim,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Text(
+                        text = if (item.isM3uMode && item.m3uLink.isNotBlank()) {
+                            item.m3uLineForDisplay()
+                        } else {
+                            item.host
+                        }.take(40) + if ((if (item.isM3uMode) item.m3uLink.length else item.host.length) > 40) "…" else "",
+                        color = TextDim,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Row 3: Saved date with CalendarToday icon (only if present)
+                if (item.time.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarToday,
+                            contentDescription = null,
+                            tint = Gold.copy(alpha = 0.8f),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = item.time,
+                            color = Gold.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
 
-        // Delete button
+        // Right side: Delete button (compact)
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(34.dp)
                 .clip(CircleShape)
                 .clickable(onClick = onDelete),
             contentAlignment = Alignment.Center
@@ -312,9 +361,19 @@ private fun HistoryItemRow(
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete",
-                tint = RedInactive,
-                modifier = Modifier.size(20.dp)
+                tint = RedInactive.copy(alpha = 0.85f),
+                modifier = Modifier.size(18.dp)
             )
         }
     }
+}
+
+/** Extract a short display string from an M3U URL. */
+private fun String.m3uLineForDisplay(): String {
+    return try {
+        val uri = android.net.Uri.parse(this)
+        val host = uri.host ?: this
+        val port = if (uri.port != -1) ":${uri.port}" else ""
+        host + port
+    } catch (_: Exception) { this.take(40) }
 }
