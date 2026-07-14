@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -317,7 +318,7 @@ private fun HistoryItemRow(
                     )
                 }
 
-                // Row 3: Saved date — uses Save icon (green) matching result screen
+                // Row 3: Saved date (green Save icon) + time (clock icon)
                 if (item.time.isNotBlank()) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -329,12 +330,30 @@ private fun HistoryItemRow(
                             tint = GreenActive,
                             modifier = Modifier.size(11.dp)
                         )
+                        // Split "yyyy/MM/dd hh:mm a" into date + time parts
+                        val parts = item.time.split(" ", limit = 3)
+                        val datePart = parts.getOrNull(0) ?: item.time
+                        val timePart = parts.drop(1).joinToString(" ")
                         Text(
-                            text = item.time,
+                            text = datePart,
                             color = GreenActive.copy(alpha = 0.9f),
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        if (timePart.isNotBlank()) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = GreenActive.copy(alpha = 0.75f),
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Text(
+                                text = timePart,
+                                color = GreenActive.copy(alpha = 0.9f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }

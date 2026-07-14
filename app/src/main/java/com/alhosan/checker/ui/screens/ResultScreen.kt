@@ -115,7 +115,14 @@ fun ResultScreen(
     val isCounting by viewModel.isCounting.collectAsState()
     val isFromHistory by viewModel.isFromHistory.collectAsState()
     val isChecking by viewModel.isChecking.collectAsState()
-    val subscription = (state as? CheckerState.Success)?.subscription
+    // Keep the last successful subscription alive so the screen doesn't go
+    // black during Refresh (the check flow replaces state with Loading, but
+    // we want to stay on the result screen and just show the spinner on the
+    // Refresh button).
+    val liveSub = (state as? CheckerState.Success)?.subscription
+    var displayedSub by remember { mutableStateOf<Subscription?>(null) }
+    LaunchedEffect(liveSub) { if (liveSub != null) displayedSub = liveSub }
+    val subscription = displayedSub
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -123,10 +130,6 @@ fun ResultScreen(
     // (history if we came from history, login if we came from login).
     BackHandler(enabled = true) { onBack() }
 
-    // If there's no subscription to display, just render nothing.
-    // We DON'T call onBack() from LaunchedEffect here because that created a
-    // loop: resetState() -> subscription=null -> onBack() -> popBackStack -> ...
-    // which is why restoring from history and pressing back jumped to login.
     if (subscription == null) {
         return
     }

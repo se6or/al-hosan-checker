@@ -225,64 +225,129 @@ fun ScreenHeader(
     onBack: () -> Unit,
     onLangToggle: () -> Unit
 ) {
-    // Fixed physical positions regardless of language / RTL:
-    //   - LEFT  (absolute, LTR start): Back arrow on inner screens, empty on login
-    //   - RIGHT (absolute, LTR end):   Language globe (always on the right)
-    // Using CompositionLocalProvider to force LTR on this Row means "Start" is
-    // always the physical left and "End" is always the physical right for both
-    // Arabic and English, so the globe never jumps to the opposite side.
+    // Language globe is always on the PHYSICAL RIGHT (LTR end) regardless of
+    // language. Back arrow follows the platform convention for the current
+    // layout direction: start edge = right in Arabic (RTL), left in English (LTR).
+    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == LayoutDirection.Rtl
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Slot 1 (physical LEFT in LTR / physical RIGHT in RTL): Back arrow,
+        // OR globe when on login (so in Arabic the globe/back swap sides
+        // according to language, but the globe NEVER moves from its own
+        // side — wait no: the user wants globe fixed on the RIGHT, back
+        // follows language).
+        // Implement:
+        //   - English (LTR): Back on LEFT,  Globe on RIGHT
+        //   - Arabic  (RTL): Back on RIGHT, Globe on RIGHT? No — user said
+        //     "ارجعه الى مكانه الى اليمين في العربية واليسار في الإنجليزية"
+        //     meaning the BACK button should be on the right in Arabic and
+        //     left in English, AND the globe should be "ثابتة بنفس مكانها
+        //     على اليمين". That means in Arabic both back and globe want
+        //     the right side → put Back on the LEFT in Arabic? No, re-read:
+        //     "ثبتها على اليمين" → globe on right (fixed).
+        //     "زر الرجوع ... الى اليمين في العربية واليسار في الإنجليزية"
+        //     Wait that would put BOTH on right in Arabic. That overlaps.
+        //     Let's do: globe always rightmost. Back is on the START edge
+        //     (left in EN, right in AR). If we put back on right in AR while
+        //     globe is also on right, they clash. So put them side by side
+        //     on the right in Arabic, single on left in English. Cleanest
+        //     interpretation: back follows platform direction (top-left in
+        //     English, top-right in Arabic), globe is on the OPPOSITE corner
+        //     from back — wait user explicitly said globe ثابت على اليمين.
+        //     Final layout:
+        //       EN: [Back←] ........... [🌐]     (back left, globe right)
+        //       AR: [🌐] ........... [→Back]    (globe left? No, user said
+        //                                          globe fixed on right)
+        //     Re-reading: "اجعل الايقونة ثابتة بنفس مكانها على اليمين" +
+        //     "زر الرجوع الى اليمين في العربية واليسار في الإنجليزية"
+        //     That means: globe always right, back is on right when AR and
+        //     on left when EN → in AR they share the right side. So in AR
+        //     put globe on far right, back next to it (slightly left of it).
+        //     In EN back on far left, globe far right.
+        // To achieve this without RTL flipping the Row, force LTR layout
+        // for the header and place children based on isRtl boolean.
+    }
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = 14.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left slot: back arrow (inner screens) or empty (login)
-            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showBack,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
-                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
-                ) {
-                    // The arrow visually points to the real left (back direction)
-                    // regardless of language; for RTL users, mirror the icon
-                    // visually so it still points "back" (towards the right
-                    // edge in RTL).
-                    val isRtl = androidx.compose.ui.platform.LocalLayoutDirection.current == LayoutDirection.Rtl
-                    CircleHeaderButton(onClick = onBack) {
+            // Left corner (physical):
+            //   EN: Back button here
+            //   AR: empty
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                if (!isRtl) {
+                    // EN: back on left
+                    HeaderButton(visible = showBack, onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = Gold,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .graphicsLayer { scaleX = if (isRtl) -1f else 1f }
-                        )
-                    }
-                }
-            }
-
-            // Right slot: language globe — ALWAYS on the physical right
-            Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = showLang,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
-                    exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
-                ) {
-                    CircleHeaderButton(onClick = onLangToggle) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = "Language",
                             tint = Gold,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 }
             }
+
+            // Center spacer
+            Spacer(Modifier.width(8.dp))
+
+            // Right corner:
+            //   AR: Back button (flipped to point right) + gap + Globe
+            //   EN: just Globe
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (isRtl) {
+                    HeaderButton(visible = showBack, onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Gold,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer { scaleX = -1f }
+                        )
+                    }
+                }
+                HeaderButton(visible = showLang, onClick = onLangToggle) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = "Language",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun HeaderButton(
+    visible: Boolean,
+    onClick: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
+        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
+    ) {
+        CircleHeaderButton(onClick = onClick, content = content)
     }
 }
 

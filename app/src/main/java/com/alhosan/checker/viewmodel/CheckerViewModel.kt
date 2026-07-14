@@ -420,8 +420,8 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             content = "${sub.liveCount} | ${sub.movieCount} | ${sub.seriesCount}",
             trial = if (sub.isTrial) _lang.value.yes else _lang.value.no,
             time = java.text.SimpleDateFormat(
-                "yyyy/MM/dd HH:mm",
-                java.util.Locale.getDefault()
+                "yyyy/MM/dd hh:mm a",
+                java.util.Locale.ENGLISH
             ).format(java.util.Date()),
             isActive = sub.isActive,
             isM3uMode = sub.isM3uMode,
