@@ -76,9 +76,14 @@ fun HistoryScreen(
     val toastMessage by viewModel.toastMessage.collectAsState()
     val modalMessage by viewModel.modalMessage.collectAsState()
 
-    // Handle system back button / gesture — matches HTML's handleAndroidBack
+    // Handle system back button — close modal first if one is open,
+    // otherwise navigate back (matches expected Android back behavior).
     BackHandler(enabled = true) {
-        onBack()
+        if (modalMessage != null) {
+            viewModel.onModalCancel()
+        } else {
+            onBack()
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Black)) {

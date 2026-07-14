@@ -1,7 +1,14 @@
 name: Build & Release APK
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:   # يدوي من GitHub
+  push:
+    branches: [ main ]
+    paths:             # يبني فقط لو تغيّر كود التطبيق أو رقم الإصدار
+      - 'app/**'
+      - 'rust/**'
+      - '*.gradle.kts'
+      - 'gradle/**'
 
 permissions:
   contents: write

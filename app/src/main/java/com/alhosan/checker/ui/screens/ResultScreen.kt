@@ -279,7 +279,7 @@ fun ResultScreen(
                         text = lang.btnE,
                         icon = Icons.Default.PhotoCamera,
                         onClick = {
-                            val sub = subscription ?: return@AlHosanMainButton
+                            val sub = subscription
                             exportResultImage(sub)
                         },
                         isSubButton = true
