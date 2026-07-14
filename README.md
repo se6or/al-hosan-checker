@@ -133,9 +133,9 @@ al-hosan-checker/
       </a>
     </td>
     <td align="center">
-      <a href="https://claude.ai">
+      <a href="https://github.com/claude">
         <img src="https://avatars.githubusercontent.com/u/76263028?s=120" width="120" alt="Claude" /><br/>
-        <b>Claude (Anthropic)</b>
+        <b>Claude</b>
       </a>
     </td>
   </tr>
