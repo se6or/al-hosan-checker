@@ -21,6 +21,7 @@ import okhttp3.Request
 import java.net.URI
 import java.net.URLDecoder
 import java.net.URLEncoder
+import java.io.IOException
 import java.io.Reader
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -520,8 +521,8 @@ class CheckerRepository {
 
     private fun countJsonArrayWithClient(okHttpClient: OkHttpClient, request: Request): Int {
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return 0
-            val body = response.body ?: return 0
+            if (!response.isSuccessful) throw IOException("HTTP error ${response.code}")
+            val body = response.body ?: throw IOException("Null body")
             body.charStream().use { reader ->
                 return countFirstJsonArrayElements(reader)
             }
@@ -593,7 +594,10 @@ class CheckerRepository {
             }
         }
 
-        return count
+        if (!started) {
+            throw IOException("Response is not a JSON array")
+        }
+        throw IOException("Unexpected EOF in JSON array")
     }
 
     /**

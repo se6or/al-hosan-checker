@@ -284,8 +284,8 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                         }
                     }
                 )
-                // Final force-apply in case any onField callbacks were missed.
-                applyContentCounts(live, movie, series, force = true)
+                // Final apply in case any onField callbacks were missed.
+                applyContentCounts(live, movie, series, force = false)
                 showToast(_lang.value.tContentCounted)
             } catch (_: Exception) {
                 // Exception during fetch — will be cleaned up in finally block below.
@@ -301,7 +301,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                     val m = if (isPendingCount(sub.movieCount))  "0" else sub.movieCount
                     val s = if (isPendingCount(sub.seriesCount)) "0" else sub.seriesCount
                     if (l != sub.liveCount || m != sub.movieCount || s != sub.seriesCount) {
-                        applyContentCounts(l, m, s, force = true)
+                        applyContentCounts(l, m, s, force = false)
                     }
                 }
                 _isCounting.value = false
@@ -317,11 +317,11 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         val currentSub = (_state.value as? CheckerState.Success)?.subscription ?: return
         val newSub = when (field) {
             CheckerRepository.ContentField.LIVE ->
-                currentSub.copy(liveCount = mergeCount(currentSub.liveCount, value, force = true))
+                currentSub.copy(liveCount = mergeCount(currentSub.liveCount, value, force = false))
             CheckerRepository.ContentField.MOVIE ->
-                currentSub.copy(movieCount = mergeCount(currentSub.movieCount, value, force = true))
+                currentSub.copy(movieCount = mergeCount(currentSub.movieCount, value, force = false))
             CheckerRepository.ContentField.SERIES ->
-                currentSub.copy(seriesCount = mergeCount(currentSub.seriesCount, value, force = true))
+                currentSub.copy(seriesCount = mergeCount(currentSub.seriesCount, value, force = false))
         }
         _state.value = CheckerState.Success(newSub)
     }
