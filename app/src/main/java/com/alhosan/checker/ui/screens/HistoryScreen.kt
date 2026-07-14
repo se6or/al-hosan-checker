@@ -50,6 +50,7 @@ import com.alhosan.checker.ui.components.alHosanStaggeredExit
 import com.alhosan.checker.ui.i18n.*
 import com.alhosan.checker.ui.theme.Black
 import com.alhosan.checker.ui.theme.BorderGold
+import com.alhosan.checker.ui.theme.Gold
 import com.alhosan.checker.ui.theme.CardBg
 import com.alhosan.checker.ui.theme.GreenActive
 import com.alhosan.checker.ui.theme.RedInactive
@@ -267,7 +268,7 @@ private fun HistoryItemRow(
                     )
             )
 
-            // Host + username
+            // Host + username + saved time
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.Start
@@ -280,12 +281,23 @@ private fun HistoryItemRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = item.user,
                     color = TextDim,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                if (item.time.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (lang == AppLang.AR) "🗓  ${item.time}" else "🗓  ${item.time}",
+                        color = Gold.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 

@@ -55,17 +55,23 @@ jobs:
       - name: Build Release APK (signed)
         run: ./gradlew assembleRelease
 
-      - name: Verify APK is signed
+      - name: Extract version info
+        id: version
         run: |
+          VCODE=$(grep "versionCode" app/build.gradle.kts | head -1 | sed 's/[^0-9]//g')
+          VNAME=$(grep "versionName" app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          SHORT=$(git rev-parse --short HEAD)
+          echo "vcode=$VCODE" >> $GITHUB_OUTPUT
+          echo "vname=$VNAME" >> $GITHUB_OUTPUT
+          echo "commit_short=$SHORT" >> $GITHUB_OUTPUT
+          echo "asset=al-hosan-checker-v${VCODE}.apk" >> $GITHUB_OUTPUT
+          echo "tag=v${VNAME}" >> $GITHUB_OUTPUT
+          echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
+          echo "VerCode=$VCODE VerName=$VNAME Tag=v${VNAME} Asset=al-hosan-checker-v${VCODE}.apk"
+          # rename & move APK
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          if [ -z "$APK_FILE" ]; then
-            echo "No APK found!"
-            exit 1
-          fi
-          echo "APK: $APK_FILE"
-          jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -5
-          mv "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker.apk"
-          echo "APK signed and renamed successfully"
+          cp "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker-v${VCODE}.apk"
+          jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -3
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -73,58 +79,48 @@ jobs:
           name: al-hosan-checker-release
           path: app/build/outputs/apk/release/*.apk
 
-      - name: Generate version info
-        id: version
+      - name: Delete previous releases (keep only latest)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BUILD_NUMBER=${{ github.run_number }}
-          echo "build_number=$BUILD_NUMBER" >> $GITHUB_OUTPUT
-          echo "date=$(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
-          echo "commit_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "Deleting all old releases + tags so only the latest remains..."
+          gh release list --json tagName,id --repo ${{ github.repository }} | \
+            jq -r '.[].tagName' | while read TAG; do
+              if [ "$TAG" != "${{ steps.version.outputs.tag }}" ]; then
+                echo "  deleting $TAG"
+                gh release delete "$TAG" --yes --cleanup-tag --repo ${{ github.repository }} || true
+              fi
+            done
 
-      - name: Delete existing release for v1.0.0
+      - name: Delete same-tag release if exists (to replace with fresh build)
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # يحذف الـ release القديم + الـ tag علمود يبقى بس آخر بناء ناجح بالـ Releases
-          gh release delete v1.0.0 --yes --cleanup-tag --repo ${{ github.repository }} || true
+          gh release delete "${{ steps.version.outputs.tag }}" --yes --cleanup-tag --repo ${{ github.repository }} || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: "v1.0.0"
-          name: "v1.0.0 — AlHosan Checker"
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
           body: |
-            ## الحصان الفاحص — AlHosan Checker
+            ## AlHosan Checker — ${{ steps.version.outputs.tag }}
 
-            **الإصدار:** v1.0.0 | **رقم البناء:** #${{ steps.version.outputs.build_number }}
-            **تاريخ البناء:** ${{ steps.version.outputs.date }}
-            **Commit:** ${{ steps.version.outputs.commit_short }}
+            - **Version code:** ${{ steps.version.outputs.vcode }}
+            - **Build date:** ${{ steps.version.outputs.date }}
+            - **Commit:** `${{ steps.version.outputs.commit_short }}`
 
-            ### التقنولوجيا
-            - **UI:** Kotlin + Jetpack Compose (Material3)
-            - **Networking:** OkHttp (direct API calls)
-            - **Core:** Rust (optional, fallback to OkHttp)
+            ### التنزيل
+            اضغط على ملف **`${{ steps.version.outputs.asset }}`** بالأسفل وحمّله، ثم ثبّته فوق التطبيق القديم.
 
-            ### الميزات
-            - فحص اشتراكات Xtream API مباشرة
-            - دعم روابط M3U (استخراج بيانات Xtream)
-            - شاشة بداية فورية (zero-delay splash)
-            - واجهة عربي/إنجليزي
-            - حفظ السجل والاستعادة
-            - نسخ البيانات وإنشاء رابط M3U
-            - تصدير النتيجة كصورة PNG
+            ### Download
+            Tap **`${{ steps.version.outputs.asset }}`** below to download, then install over the existing app.
 
-            ### التعليمات
-            1. حمّل ملف APK
-            2. فعّل "التثبيت من مصادر غير معروفة" في إعدادات الجهاز
-            3. ثبّت التطبيق
-
-            **متطلبات:** Android 8.0+ (API 26)
-          files: app/build/outputs/apk/release/*.apk
+            **متطلبات / Requirements:** Android 8.0+ (API 26)
+          files: app/build/outputs/apk/release/${{ steps.version.outputs.asset }}
           draft: false
           prerelease: false
           make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
