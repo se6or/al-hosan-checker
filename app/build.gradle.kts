@@ -88,7 +88,9 @@ dependencies {
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    // Keep serialization on 1.6.x while the project uses Kotlin 1.9.25/Compose compiler 1.5.15.
+    // kotlinx.serialization 1.7.x is compiled for Kotlin 2.x and breaks release builds here.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     // Image loading
