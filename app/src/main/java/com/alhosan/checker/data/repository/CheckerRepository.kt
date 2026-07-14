@@ -675,9 +675,44 @@ class CheckerRepository {
                         )
                     }
 
-                    // Some panels allow get.php playlist download but block/disable
-                    // player_api.php. If that happens, still give the user a useful
-                    // real M3U result by counting the playlist itself.
+                    // player_api.php failed (404 / not_xtream / etc.). Some panels
+                    // (e.g. ones where the M3U link specifies an explicit :80 port
+                    // but player_api.php is only served on the default port, or
+                    // panels that host get.php on a different URL shape) still
+                    // serve get.php properly. Try fetching the M3U playlist itself
+                    // from ALL candidate hosts derived from the link so we can
+                    // still show the user a useful result instead of "response
+                    // invalid".
+                    val candidateHosts = buildList {
+                        add(credentials.host)
+                        // If link carried an explicit default port, retry without it.
+                        val noDefault = stripDefaultPort(credentials.host)
+                        if (noDefault != credentials.host) add(noDefault)
+                    }.distinct()
+
+                    for (candidateHost in candidateHosts) {
+                        // Build candidate get.php URLs matching the link's host and
+                        // explicit port (if any). This covers panels where get.php
+                        // works but player_api.php is disabled or on a different vhost.
+                        val candidateGetUrl = buildGetUrl(candidateHost, credentials.username, credentials.password)
+                        val playlistFallback = fetchAndCountM3uPlaylist(
+                            m3uLink = candidateGetUrl,
+                            host = candidateHost,
+                            username = credentials.username,
+                            password = credentials.password
+                        )
+                        if (playlistFallback != null) {
+                            return@withContext Result.success(
+                                playlistFallback.copy(
+                                    isM3uMode = true,
+                                    m3uLink = normalizedLink
+                                )
+                            )
+                        }
+                    }
+
+                    // Last resort: fetch the original link the user pasted as-is
+                    // (handles panels serving M3U on a custom path).
                     val playlistFallback = fetchAndCountM3uPlaylist(
                         m3uLink = normalizedLink,
                         host = credentials.host,
@@ -712,7 +747,20 @@ class CheckerRepository {
         val uri = runCatching { URI(link) }.getOrNull() ?: return null
         val scheme = uri.scheme ?: return null
         val hostName = uri.host ?: return null
-        val host = "$scheme://$hostName${if (uri.port != -1 && uri.port != 80 && uri.port != 443) ":${uri.port}" else ""}"
+        // Preserve non-default ports; drop :80 on http and :443 on https because
+        // many Xtream panels (e.g. 4ksdreams.com) only expose player_api.php /
+        // get.php on the default port and return 404 when an explicit default
+        // port is appended to the Host header.
+        val port = uri.port
+        val isDefaultPort =
+            port == -1 ||
+                (scheme.equals("http", ignoreCase = true) && port == 80) ||
+                (scheme.equals("https", ignoreCase = true) && port == 443)
+        val host = if (isDefaultPort) {
+            "$scheme://$hostName"
+        } else {
+            "$scheme://$hostName:$port"
+        }
 
         val params = parseQueryParams(uri.rawQuery ?: uri.query.orEmpty())
         val queryUser = params["username"] ?: params["user"] ?: params["login"]
@@ -776,6 +824,25 @@ class CheckerRepository {
         } catch (_: Exception) {
             value
         }
+    }
+
+    /** Strip the default port (80 for http, 443 for https) from a host URL. */
+    private fun stripDefaultPort(host: String): String {
+        return try {
+            val u = java.net.URL(host)
+            val isDefault =
+                (u.protocol == "http" && (u.port == -1 || u.port == 80)) ||
+                (u.protocol == "https" && (u.port == -1 || u.port == 443))
+            if (isDefault) "${u.protocol}://${u.host}" else host
+        } catch (_: Exception) {
+            host
+        }
+    }
+
+    /** Build a canonical /get.php?...type=m3u_plus&output=ts URL from host+credentials. */
+    private fun buildGetUrl(host: String, username: String, password: String): String {
+        val base = host.trimEnd('/')
+        return "$base/get.php?username=${encodeQuery(username)}&password=${encodeQuery(password)}&type=m3u_plus&output=ts"
     }
 
     private fun fetchAndCountM3uPlaylist(
