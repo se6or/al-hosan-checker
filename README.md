@@ -42,10 +42,12 @@
 - **تصدير النتيجة كصورة PNG** (للمشاركة أو الحفظ)
 - **إنشاء رابط M3U** جاهز للنسخ
 - **سجل محفوظات** (حفظ + استرجاع + حذف)
+- **تحديث تلقائي داخل التطبيق** — يتحقق من GitHub Releases ويحمّل ويثبّت أحدث نسخة بدون الحاجة لمتجر
 - **واجهة عربية كاملة** مع دعم RTL
-- **تبديل اللغة** في أي لحظة
+- **تبديل اللغة** في أي لحظة (عربي/إنجليزي)
 - **شاشة بداية فورية** (Zero-delay splash)
 - **تشخيص أخطاء دقيق** (DNS، SSL، مهلة، بيانات خاطئة...)
+- **نواة Rust اختيارية** عبر JNI لمعالجة أسرع (فحص Xtream، تحليل M3U، فلترة القنوات) — مع fallback تلقائي لـ Kotlin/OkHttp لو المكتبة غير متوفرة
 
 ---
 
@@ -55,18 +57,21 @@
 |----------------|----------------------------------|------|
 | **UI**         | Jetpack Compose + Material 3    | واجهة حديثة وسريعة |
 | **Networking** | OkHttp 4 + Kotlin Coroutines    | الطريقة الرئيسية (مستقرة) |
-| **Fallback**   | Rust (اختياري)                  | معالجة ثقيلة عبر JNI |
+| **Native Core**| Rust (اختياري عبر JNI)          | فحص/تحليل أسرع لملفات ضخمة |
 | **Data**       | kotlinx.serialization           | JSON سريع وآمن |
 | **Images**     | Coil                            | تحميل الصور |
+| **التحديثات**  | GitHub Releases API              | فحص + تحميل + تثبيت تلقائي داخل التطبيق |
 
 ---
 
 ## 📱 كيفية الاستخدام
 
 1. حمل آخر إصدار من [Releases](https://github.com/se6or/al-hosan-checker/releases)
-2. فعّل "تثبيت من مصادر غير معروفة"
-3. افتح التطبيق وأدخل بيانات الاشتراك أو رابط M3U
+2. فعّل "تثبيت من مصادر غير معروفة" عند أول تثبيت
+3. افتح التطبيق وأدخل بيانات الاشتراك (Xtream) أو رابط M3U
 4. اضغط **بدء الفحص**
+
+بعد كذا، التطبيق يتحقق تلقائياً من وجود إصدار أحدث على GitHub عند كل فتح، ويعرض لك تحديث بضغطة واحدة — بدون حاجة لتنزيل يدوي.
 
 ---
 
@@ -76,18 +81,38 @@
 al-hosan-checker/
 ├── app/
 │   ├── src/main/java/com/alhosan/checker/
-│   │   ├── ui/               # الشاشات (Login, Result, History...)
-│   │   ├── viewmodel/
-│   │   ├── data/repository/  # OkHttp + منطق الفحص
-│   │   ├── bridge/           # RustBridge (اختياري)
-│   │   └── util/
+│   │   ├── ui/
+│   │   │   ├── screens/       # Login, Result, History, Splash
+│   │   │   ├── components/    # عناصر واجهة مشتركة + UpdateDialog
+│   │   │   └── i18n/          # نصوص عربي/إنجليزي
+│   │   ├── viewmodel/         # CheckerViewModel
+│   │   ├── data/
+│   │   │   ├── model/         # Subscription, HistoryItem...
+│   │   │   └── repository/    # CheckerRepository (منطق الفحص)
+│   │   ├── bridge/            # RustBridge (JNI)
+│   │   └── util/              # AppUpdater, ImageExporter...
 │   └── src/main/res/
-├── rust/                     # (اختياري) الكود الأصلي
+├── rust/                      # نواة Rust الاختيارية
 ├── screenshots/
 ├── .github/workflows/
-│   └── build.yml             # بناء + إصدار تلقائي
+│   └── build.yml              # بناء + توقيع + رفع إصدار (يدوي)
 └── README.md
 ```
+
+---
+
+## 🔄 نظام التحديث التلقائي
+
+التطبيق يفحص GitHub Releases تلقائياً عند فتحه، ويقارن رقم الإصدار المثبت بآخر إصدار منشور. لو وجد إصدار أحدث:
+
+1. يعرض نافذة تحديث داخل التطبيق (بدون الخروج منه)
+2. يحمّل ملف APK من الـ Release مباشرة
+3. يثبّته تلقائياً بعد موافقة المستخدم
+
+**للمطورين:** كل إصدار جديد يتطلب:
+1. رفع `versionCode` و `versionName` في `app/build.gradle.kts`
+2. تشغيل الـ workflow يدوياً من تبويب **Actions**
+3. الـ workflow يبني APK موقّع وينشره على Releases تلقائياً
 
 ---
 
