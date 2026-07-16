@@ -51,6 +51,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.alhosan.checker.data.model.AppLang
+import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.ui.screens.HistoryScreen
 import com.alhosan.checker.ui.screens.LoginScreen
 import com.alhosan.checker.ui.screens.ResultScreen
@@ -104,6 +105,8 @@ fun AlHosanApp() {
     val lang by viewModel.lang.collectAsState()
     val appDirection = if (lang == AppLang.AR) LayoutDirection.Rtl else LayoutDirection.Ltr
     val transitionScope = rememberCoroutineScope()
+    val checkerState by viewModel.state.collectAsState()
+    val isChecking = checkerState is CheckerState.Loading
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
@@ -129,6 +132,7 @@ fun AlHosanApp() {
             ScreenHeader(
                 showBack = currentRoute != "login",
                 showLang = currentRoute == "login",
+                langEnabled = !isChecking,
                 onBack = {
                     when (currentRoute) {
                         "result" -> popResultAfterTransition()
@@ -210,6 +214,7 @@ fun AlHosanApp() {
 fun ScreenHeader(
     showBack: Boolean,
     showLang: Boolean = true,
+    langEnabled: Boolean = true,
     onBack: () -> Unit,
     onLangToggle: () -> Unit
 ) {
@@ -270,11 +275,15 @@ fun ScreenHeader(
                         )
                     }
                 }
-                HeaderButton(visible = showLang, onClick = onLangToggle) {
+                HeaderButton(
+                    visible = showLang,
+                    onClick = onLangToggle,
+                    enabled = langEnabled
+                ) {
                     Icon(
                         imageVector = Icons.Default.Language,
                         contentDescription = "Language",
-                        tint = Gold,
+                        tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -287,6 +296,7 @@ fun ScreenHeader(
 private fun HeaderButton(
     visible: Boolean,
     onClick: () -> Unit,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     AnimatedVisibility(
@@ -294,7 +304,7 @@ private fun HeaderButton(
         enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
         exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
     ) {
-        CircleHeaderButton(onClick = onClick, content = content)
+        CircleHeaderButton(onClick = onClick, enabled = enabled, content = content)
     }
 }
 
@@ -305,6 +315,7 @@ private fun HeaderButton(
 @Composable
 private fun CircleHeaderButton(
     onClick: () -> Unit,
+    enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     Box(
@@ -313,7 +324,7 @@ private fun CircleHeaderButton(
             .clip(CircleShape)
             .background(SurfaceBlack, CircleShape)
             .border(1.dp, BorderGold, CircleShape)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         content()
