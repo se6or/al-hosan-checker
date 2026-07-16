@@ -53,6 +53,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckerState
+import com.alhosan.checker.ui.i18n.*
 import com.alhosan.checker.ui.screens.HistoryScreen
 import com.alhosan.checker.ui.screens.LoginScreen
 import com.alhosan.checker.ui.screens.ResultScreen
@@ -130,10 +131,6 @@ fun AlHosanApp() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Black)
-                .then(
-                    if (isChecking && currentRoute == "login") Modifier.blur(12.dp)
-                    else Modifier
-                )
         ) {
             // Header is outside NavHost so the back button stays fixed and does not
         // participate in the screen open/close staggered transition.
@@ -142,6 +139,12 @@ fun AlHosanApp() {
                 showBack = currentRoute != "login",
                 showLang = currentRoute == "login",
                 langEnabled = !isChecking,
+                blurred = isChecking,
+                title = when (currentRoute) {
+                    "history" -> lang.hTitle
+                    "result" -> lang.resTitle
+                    else -> null
+                },
                 onBack = {
                     when (currentRoute) {
                         "result" -> popResultAfterTransition()
@@ -224,6 +227,8 @@ fun ScreenHeader(
     showBack: Boolean,
     showLang: Boolean = true,
     langEnabled: Boolean = true,
+    title: String? = null,
+    blurred: Boolean = false,
     onBack: () -> Unit,
     onLangToggle: () -> Unit
 ) {
@@ -235,13 +240,33 @@ fun ScreenHeader(
     // positions using isRtl.
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .then(if (blurred) Modifier.blur(12.dp) else Modifier)
         ) {
+            // Centered page title — a separate layer so it's positioned
+            // relative to the FULL header width, independent of whichever
+            // combination of back/lang buttons happens to be visible.
+            if (title != null) {
+                Text(
+                    text = title,
+                    color = Gold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 64.dp)
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
             // Left corner (physical):
             //   EN: Back button here
             //   AR: empty
@@ -306,7 +331,8 @@ fun ScreenHeader(
                     }
                 } // end Row
             } // end fixed-width Box
-        }
+            } // end buttons Row
+        } // end title Box
     }
 }
 

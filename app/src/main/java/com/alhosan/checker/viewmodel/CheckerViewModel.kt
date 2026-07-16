@@ -96,6 +96,10 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
     val isFromHistory: StateFlow<Boolean> = _isFromHistory.asStateFlow()
 
     private var lastSavedHash = ""
+    // True only while a refresh (from a saved history item) is in flight —
+    // lets checkSubscription()/fetchContentCounts() know this result should
+    // auto-persist to the top of history instead of waiting for a manual Save tap.
+    private var isRefreshFlow = false
 
     init {
         loadHistory()
@@ -222,9 +226,23 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                     onSuccess = { subscription ->
                         if (subscription.hasError) {
                             _state.value = CheckerState.Error(subscription.error)
+                            if (isRefreshFlow) {
+                                _isFromHistory.value = true
+                                isRefreshFlow = false
+                            }
                         } else {
                             _state.value = CheckerState.Success(subscription)
                             showToast(_lang.value.tD)
+
+                            // Refresh (from a saved history item): persist immediately
+                            // so the updated subscription jumps to the top of the
+                            // history list right away — it's treated as a brand-new
+                            // check. Keep isFromHistory=true so the Refresh button
+                            // (not Save) stays visible.
+                            if (isRefreshFlow) {
+                                _isFromHistory.value = true
+                                persistCurrentToHistory()
+                            }
 
                             // Fetch content counts in background whenever we have
                             // real Xtream credentials — including links entered
@@ -240,8 +258,9 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                                     subscription.movieCount == "0" &&
                                     subscription.seriesCount == "0"
                             if (needsContentCount) {
-                                fetchContentCounts(subscription)
+                                fetchContentCounts(subscription, persistWhenDone = isRefreshFlow)
                             }
+                            isRefreshFlow = false
                         }
                     },
                     onFailure = { exception ->
@@ -249,6 +268,10 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                         val errorCode = exception.message ?: "unknown"
                         val msg = _lang.value.diagnosticMessage(errorCode)
                         _state.value = CheckerState.Error(msg)
+                        if (isRefreshFlow) {
+                            _isFromHistory.value = true
+                            isRefreshFlow = false
+                        }
                     }
                 )
             } catch (e: Exception) {
@@ -256,6 +279,10 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                 _progressPhase.value = ProgressPhase.IDLE
                 val errorCode = e.message ?: "unknown"
                 _state.value = CheckerState.Error(_lang.value.diagnosticMessage(errorCode))
+                if (isRefreshFlow) {
+                    _isFromHistory.value = true
+                    isRefreshFlow = false
+                }
             }
         }
     }
@@ -269,7 +296,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
      * own count arrives, independently of siblings). When all three
      * finish, a toast confirms the content was counted.
      */
-    private fun fetchContentCounts(subscription: Subscription) {
+    private fun fetchContentCounts(subscription: Subscription, persistWhenDone: Boolean = false) {
         viewModelScope.launch {
             _isCounting.value = true
 
@@ -320,6 +347,11 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
                 _isCounting.value = false
+                // Refresh flow: persist again now that the real counts are in,
+                // so the top-of-history entry reflects the final numbers too.
+                if (persistWhenDone) {
+                    persistCurrentToHistory()
+                }
             }
         }
     }
@@ -397,7 +429,9 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
     }
 
     /**
-     * Save current subscription to history (matches HTML reference's saveToMemory)
+     * Save current subscription to history (matches HTML reference's saveToMemory).
+     * Public — called by the user tapping the Save button. Shows the
+     * "already saved" toast if nothing changed since the last manual save.
      */
     fun saveToHistory() {
         val sub = (_state.value as? CheckerState.Success)?.subscription ?: return
@@ -406,6 +440,28 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             showToast(_lang.value.tAlreadySaved)
             return
         }
+        val wasUpdated = persistCurrentToHistory()
+        showToast(
+            if (wasUpdated) {
+                if (_lang.value == AppLang.AR) "تم تحديث الاشتراك" else "Subscription updated"
+            } else {
+                _lang.value.tS
+            }
+        )
+    }
+
+    /**
+     * Write the current Success subscription to the top of the saved
+     * history list — no toast, no duplicate-save guard. Used internally by
+     * both [saveToHistory] and the auto-save-on-refresh flow so a refreshed
+     * subscription is always treated as "a brand-new check" and jumps to
+     * the top of the list, even though the counts may still be pending
+     * (this gets called again once fetchContentCounts finishes).
+     * Returns true if an existing entry was replaced, false if this was new.
+     */
+    private fun persistCurrentToHistory(): Boolean {
+        val sub = (_state.value as? CheckerState.Success)?.subscription ?: return false
+        val hash = "${sub.host}|${sub.username}"
         lastSavedHash = hash
 
         val item = HistoryItem(
@@ -437,13 +493,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
 
         _history.value = logs.take(30)
         saveHistory()
-        showToast(
-            if (wasUpdated) {
-                if (_lang.value == AppLang.AR) "تم تحديث الاشتراك" else "Subscription updated"
-            } else {
-                _lang.value.tS
-            }
-        )
+        return wasUpdated
     }
 
     /**
@@ -487,9 +537,13 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
             _username.value = sub.username
             _password.value = sub.password
         }
-        // Clear isFromHistory so the Save button becomes visible again after the check
+        // isFromHistory momentarily false during the check (matches
+        // checkSubscription's own reset); isRefreshFlow tells checkSubscription
+        // to restore it to true on completion AND auto-persist the updated
+        // result to the top of history, instead of showing the Save button.
         _isFromHistory.value = false
         lastSavedHash = ""
+        isRefreshFlow = true
         checkSubscription()
     }
 

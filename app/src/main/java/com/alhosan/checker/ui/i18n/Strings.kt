@@ -33,8 +33,8 @@ val AppLang.hist: String get() = when (this) {
 
 // Result title
 val AppLang.resTitle: String get() = when (this) {
-    AppLang.AR -> "تفاصيل الاشتراك"
-    AppLang.EN -> "Subscription Details"
+    AppLang.AR -> "معلومات الاشتراك"
+    AppLang.EN -> "Subscription Info"
 }
 
 // Placeholders

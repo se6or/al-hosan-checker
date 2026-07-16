@@ -62,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -74,12 +75,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.alhosan.checker.data.model.AppLang
 import com.alhosan.checker.data.model.CheckerState
 import com.alhosan.checker.data.model.Subscription
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material.icons.filled.Check
 import com.alhosan.checker.ui.components.AlHosanMainButton
 import com.alhosan.checker.ui.components.AlHosanToast
 import com.alhosan.checker.ui.components.CapsuleItem
 import com.alhosan.checker.ui.components.ContentCountDisplay
 import com.alhosan.checker.ui.components.ResultPrimaryInfoStacked
 import com.alhosan.checker.ui.components.ResultSideBySideStacked
+import com.alhosan.checker.ui.components.ShinyText
 import com.alhosan.checker.ui.components.StaggeredColumn
 import com.alhosan.checker.ui.components.StatusBadge
 import com.alhosan.checker.ui.components.alHosanStaggeredEnter
@@ -212,6 +217,7 @@ fun ResultScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .then(if (isChecking) Modifier.blur(12.dp) else Modifier)
         ) {
             // ── Card content ──
             Column(
@@ -253,7 +259,8 @@ fun ResultScreen(
                             text = if (lang == AppLang.AR) "تحديث" else "Refresh",
                             icon = Icons.Default.Refresh,
                             onClick = { viewModel.refreshFromHistory() },
-                            isLoading = isChecking
+                            isLoading = isChecking,
+                            modifier = if (isChecking) Modifier.graphicsLayer { alpha = 0.4f } else Modifier
                         )
                     }
                 }
@@ -291,6 +298,30 @@ fun ResultScreen(
         }
         } // end outer scrollable Column
 
+        // ─── Refresh overlay: transparent logo + shiny text, sits ABOVE the
+        // blurred content (sibling, not a child) so it stays perfectly sharp
+        // while everything behind it (card, buttons, header) blurs out. ───
+        var wasChecking by remember { mutableStateOf(false) }
+        var showUpdateSuccess by remember { mutableStateOf(false) }
+        LaunchedEffect(isChecking) {
+            if (isChecking) {
+                wasChecking = true
+            } else if (wasChecking) {
+                wasChecking = false
+                showUpdateSuccess = true
+                delay(900)
+                showUpdateSuccess = false
+            }
+        }
+        AnimatedVisibility(
+            visible = isChecking || showUpdateSuccess,
+            enter = alHosanStaggeredEnter(durationMs = 300),
+            exit = alHosanStaggeredExit(durationMs = 260),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            RefreshOverlay(lang = lang, showSuccess = showUpdateSuccess)
+        }
+
         // ─── Screenshot-style flash while saving image ───
         AnimatedVisibility(
             visible = isCapturingImage,
@@ -316,6 +347,77 @@ fun ResultScreen(
         ) {
             if (toastMessage != null) {
                 AlHosanToast(message = toastMessage!!)
+            }
+        }
+    }
+}
+
+/**
+ * Fullscreen overlay shown while refreshing a saved subscription from the
+ * result screen. Same visual language as the login screen's checking
+ * overlay: transparent logo + shiny gold text, no backdrop of its own —
+ * the blur comes from the sibling content behind it.
+ *
+ * Shows "جارِ التحديث" while the refresh is running, then briefly swaps to
+ * a green checkmark + "تم التحديث" for ~900ms once it completes.
+ */
+@Composable
+private fun RefreshOverlay(lang: AppLang, showSuccess: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (!showSuccess) Modifier.pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                } else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (showSuccess) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(Color(0xFF2ECC71), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(34.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (lang == AppLang.AR) "تم التحديث" else "Updated",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+            }
+        } else {
+            com.alhosan.checker.ui.components.StaggeredColumn(perItemDelayMs = 70) {
+                Item {
+                    ShinyLogo(
+                        modifier = Modifier.size(88.dp)
+                    )
+                }
+                Item {
+                    Spacer(modifier = Modifier.height(18.dp))
+                    ShinyText(
+                        text = if (lang == AppLang.AR) "جارِ التحديث" else "Updating",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        rtl = lang == AppLang.AR,
+                        durationMs = 1800
+                    )
+                }
             }
         }
     }
