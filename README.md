@@ -20,16 +20,18 @@
 
 <table>
   <tr>
-    <td align="center"><b>شاشة تسجيل الدخول (Xtream)</b></td>
     <td align="center"><b>شاشة تسجيل الدخول (M3U)</b></td>
+    <td align="center"><b>شاشة تسجيل الدخول (Xtream)</b></td>
+    <td align="center"><b>جارِ الفحص</b></td>
     <td align="center"><b>شاشة النتيجة</b></td>
     <td align="center"><b>سجل المحفوظات</b></td>
   </tr>
   <tr>
-    <td><img src="screenshots/Screenshot_2026-07-12-15-30-25-888_com.alhosan.checker.jpg" width="200" alt="Xtream login" /></td>
-    <td><img src="screenshots/Screenshot_2026-07-12-15-33-47-621_com.alhosan.checker.jpg" width="200" alt="M3U login" /></td>
-    <td><img src="screenshots/Screenshot_2026-07-12-15-30-50-986_com.alhosan.checker-edit.jpg" width="200" alt="Result screen" /></td>
-    <td><img src="screenshots/Screenshot_2026-07-12-15-32-53-450_com.alhosan.checker-edit.jpg" width="200" alt="History screen" /></td>
+    <td><img src="screenshots/login-m3u.jpg" width="180" alt="M3U login" /></td>
+    <td><img src="screenshots/login-xtream.jpg" width="180" alt="Xtream login" /></td>
+    <td><img src="screenshots/splash-checking.jpg" width="180" alt="Checking in progress" /></td>
+    <td><img src="screenshots/result-screen.jpg" width="180" alt="Result screen" /></td>
+    <td><img src="screenshots/history-list.jpg" width="180" alt="History screen" /></td>
   </tr>
 </table>
 
