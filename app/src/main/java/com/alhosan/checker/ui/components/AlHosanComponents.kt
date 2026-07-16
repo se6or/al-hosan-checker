@@ -3,6 +3,7 @@ package com.alhosan.checker.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -967,16 +968,22 @@ private fun RowScope.ContentCountItem(
 /**
  * Content count number — independent per-field count-up animation.
  *
- * Each field (channels / movies / series) is FULLY INDEPENDENT:
- * - Turns GOLD during counting, turns WHITE the instant THIS field reaches
- *   its own server number — without waiting for sibling fields.
- * - isLoading = false (image-export capture): renders final value directly,
- *   no coroutine, guaranteeing the exported PNG shows the correct number.
+ * Each field (channels / movies / series) is FULLY INDEPENDENT and runs
+ * concurrently with its siblings (the repository fetches all three in
+ * parallel via async/coroutineScope) — there is no shared state here that
+ * ties one field's animation to another's.
+ *
+ * - While the real number is still pending, shows a lightweight pulsing
+ *   placeholder — NOT a fake climbing number. A fabricated random count
+ *   that can wander arbitrarily high before the real value replaces it is
+ *   misleading precision; this widget never invents a number.
+ * - The instant the real count arrives, it animates smoothly from the
+ *   current displayed value (0 while it was pending) up to the exact real
+ *   number — once, no reset, no overshoot, no restart.
+ * - isLoading = false (image-export capture): renders the final value
+ *   directly, no coroutine, guaranteeing the exported PNG is correct.
  * - LaunchedEffect keyed ONLY on [target] — never restarts when the global
  *   isCounting flag flips, no restart bug.
- * - target == null → fast random counter (pending)
- * - target == 0   → snap white immediately
- * - target  > 0   → animate 0 → target, then turn white independently
  */
 @Composable
 private fun CountUpNumber(count: String, isLoading: Boolean) {
@@ -987,17 +994,14 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         else null
     }
 
-    // ALL remember/LaunchedEffect calls must be unconditional — Compose
-    // requires a consistent number and order of composable calls on every
-    // recomposition. Moving them before any branching avoids slot-table
-    // misalignment (which was the compile/runtime error from early return).
     var display by remember { mutableStateOf(0) }
     var done    by remember { mutableStateOf(false) }
+    // Pulsing alpha shown only while the real number is still pending —
+    // an honest "waiting" indicator instead of a fabricated rising number.
+    val pendingAlpha = remember { Animatable(1f) }
 
     LaunchedEffect(target) {
         // ── Static capture (isLoading = false at launch time) ────────────────
-        // Image export passes isCounting=false → isLoading=false. Snap to the
-        // real value immediately so the captured bitmap is always correct.
         if (!isLoading) {
             display = target ?: 0
             done    = true
@@ -1006,32 +1010,36 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         // ── Live animation ────────────────────────────────────────────────────
         when {
             target == null -> {
-                // Pending: server hasn't replied — fast random counter.
+                // Pending: server hasn't replied yet. No fake number — just a
+                // gentle pulse on "—" so the user knows this field is still
+                // working, without implying a false precision.
                 done = false
-                while (true) {
-                    display = (display + (8..55).random()).coerceAtMost(999_999)
-                    delay(25)
-                }
+                pendingAlpha.snapTo(1f)
+                pendingAlpha.animateTo(
+                    targetValue = 0.35f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(650, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    )
+                )
             }
             target == 0 -> {
-                // Real zero — snap white immediately.
+                // Real zero — snap immediately, nothing to animate.
                 display = 0
                 done    = true
             }
             else -> {
-                // Real positive count — animate 0 → target.
-                // This field turns white on its OWN schedule, independently.
-                // Use local val 't' (Int, not Int?) to avoid smart-cast issues
-                // inside the suspend lambda — the compiler can't guarantee
-                // the captured nullable 'target' stays non-null across suspension.
+                // Real positive count — animate smoothly from whatever is
+                // currently displayed (0, since pending shows "—" not a
+                // number) up to the exact real value. Single pass, no reset.
                 val t = target ?: return@LaunchedEffect
-                done    = false
-                display = 0
+                done = false
+                val start = display
                 val dur = 700L
                 val t0  = System.currentTimeMillis()
                 while (true) {
                     val p = ((System.currentTimeMillis() - t0).toFloat() / dur).coerceIn(0f, 1f)
-                    display = (t * p).toInt()
+                    display = (start + (t - start) * p).toInt()
                     if (p >= 1f) break
                     delay(16)
                 }
@@ -1041,12 +1049,16 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         }
     }
 
-    // When isLoading=false (capture mode) render final value directly so the
-    // exported PNG shows the correct number even before the LaunchedEffect
-    // coroutine gets a chance to run its first frame.
+    val isPending = isLoading && target == null
+
     Text(
-        text  = if (!isLoading) (target ?: 0).toString() else display.toString(),
+        text  = when {
+            !isLoading -> (target ?: 0).toString()
+            isPending  -> "—"
+            else       -> display.toString()
+        },
         color = if (!isLoading || done) Color.White else Gold,
+        modifier = if (isPending) Modifier.graphicsLayer { alpha = pendingAlpha.value } else Modifier,
         fontWeight = FontWeight.Black,
         fontSize   = 18.sp
     )
