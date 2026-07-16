@@ -54,7 +54,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -182,12 +181,11 @@ fun LoginScreen(
                 }
             }
     ) {
-        // Login content — blurred while checking so the transparent overlay
-        // logo floats above a softly out-of-focus background (no solid black).
+        // Login content — blur is now applied at the app-wide level (MainActivity)
+        // so it covers the header (including the language button) too.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .then(if (isChecking) Modifier.blur(12.dp) else Modifier)
         ) {
             // ── Card with tabs + inputs + start-check button ──
             Card(
