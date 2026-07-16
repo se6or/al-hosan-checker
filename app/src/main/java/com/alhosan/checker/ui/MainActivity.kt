@@ -268,35 +268,44 @@ fun ScreenHeader(
             // Right corner:
             //   AR: Back button (flipped to point right) + gap + Globe
             //   EN: just Globe
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // Fixed-width container (2 slots + gap) so the Row never reflows
+            // while one button fades out and the other fades in at the same
+            // time — without this, the transient overlap during the crossfade
+            // made the whole group visibly jump for a split second.
+            Box(
+                modifier = Modifier.width(40.dp + 6.dp + 40.dp),
+                contentAlignment = Alignment.CenterEnd
             ) {
-                if (isRtl) {
-                    HeaderButton(visible = showBack, onClick = onBack) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (isRtl) {
+                        HeaderButton(visible = showBack, onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Gold,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .graphicsLayer { scaleX = -1f }
+                            )
+                        }
+                    }
+                    HeaderButton(
+                        visible = showLang,
+                        onClick = onLangToggle,
+                        enabled = langEnabled
+                    ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Gold,
-                            modifier = Modifier
-                                .size(18.dp)
-                                .graphicsLayer { scaleX = -1f }
+                            imageVector = Icons.Default.Language,
+                            contentDescription = "Language",
+                            tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                }
-                HeaderButton(
-                    visible = showLang,
-                    onClick = onLangToggle,
-                    enabled = langEnabled
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Language,
-                        contentDescription = "Language",
-                        tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
+                } // end Row
+            } // end fixed-width Box
         }
     }
 }
