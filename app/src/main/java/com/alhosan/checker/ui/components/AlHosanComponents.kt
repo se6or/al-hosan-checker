@@ -977,6 +977,10 @@ private fun RowScope.ContentCountItem(
  *   invented visual. The moment the real count arrives it counts up once,
  *   smoothly and accurately, from 0 to the exact number. No reset, no
  *   overshoot, no re-counting after it finishes.
+ * - While pending, shows a real repeating count-up loop 0 → 100 (like
+ *   https://reactbits.dev/text-animations/count-up) as an honest "still
+ *   working" indicator — actual counting motion, not a static placeholder
+ *   or a blinking shape.
  * - isLoading = false (image-export capture): renders the final value
  *   directly, no coroutine, guaranteeing the exported PNG is correct.
  * - LaunchedEffect keyed ONLY on [target] — never restarts when the global
@@ -1004,9 +1008,21 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         // ── Live animation ────────────────────────────────────────────────────
         when {
             target == null -> {
-                // Pending: server hasn't replied yet. Show nothing — no fake
-                // number, no placeholder shape to blink or pulse.
+                // Pending: server hasn't replied yet. Real counting motion —
+                // loops 0 → 100 → 0 → 100... at a fast, steady pace. This is
+                // an honest "still working" indicator (the loop itself is
+                // visibly not a real total), never a static/blinking shape.
                 done = false
+                while (true) {
+                    val dur = 900L
+                    val t0 = System.currentTimeMillis()
+                    while (true) {
+                        val p = ((System.currentTimeMillis() - t0).toFloat() / dur).coerceIn(0f, 1f)
+                        display = (p * 100).toInt()
+                        if (p >= 1f) break
+                        delay(16)
+                    }
+                }
             }
             target == 0 -> {
                 // Real zero — snap immediately, nothing to animate.
@@ -1014,13 +1030,14 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
                 done    = true
             }
             else -> {
-                // Real positive count — animate smoothly from 0 (pending never
-                // displayed a number) up to the exact real value. One pass,
-                // no reset, no re-count once finished.
+                // Real positive count arrived — finish with a FAST, exact
+                // count-up from wherever the pending loop currently sits, up
+                // to the precise real value. Single pass, ends exactly on
+                // target, never resets or re-counts after landing.
                 val t = target ?: return@LaunchedEffect
                 done = false
                 val start = display
-                val dur = 700L
+                val dur = 450L
                 val t0  = System.currentTimeMillis()
                 while (true) {
                     val p = ((System.currentTimeMillis() - t0).toFloat() / dur).coerceIn(0f, 1f)
@@ -1034,14 +1051,8 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         }
     }
 
-    val isPending = isLoading && target == null
-
     Text(
-        text  = when {
-            !isLoading -> (target ?: 0).toString()
-            isPending  -> ""
-            else       -> display.toString()
-        },
+        text  = if (!isLoading) (target ?: 0).toString() else display.toString(),
         color = if (!isLoading || done) Color.White else Gold,
         fontWeight = FontWeight.Black,
         fontSize   = 18.sp
