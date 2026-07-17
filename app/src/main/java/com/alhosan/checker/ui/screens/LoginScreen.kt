@@ -107,7 +107,6 @@ import com.alhosan.checker.ui.i18n.*
 @Composable
 fun LoginScreen(
     onResultReady: () -> Unit,
-    onHistoryClick: () -> Unit,
     viewModel: CheckerViewModel = viewModel()
 ) {
     val host by viewModel.host.collectAsState()
@@ -244,15 +243,6 @@ fun LoginScreen(
                 }
             }
 
-            // ── HISTORY button — OUTSIDE the card, below it with breathing space ──
-            Spacer(modifier = Modifier.height(16.dp))
-            AlHosanMainButton(
-                text = lang.hist,
-                icon = Icons.Default.History,
-                onClick = onHistoryClick,
-                isSubButton = true,
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
         }
 
         // ── Toast ──

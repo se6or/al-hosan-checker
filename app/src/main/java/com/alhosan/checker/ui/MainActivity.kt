@@ -7,7 +7,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +35,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,7 +43,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -131,11 +137,29 @@ fun AlHosanApp() {
         }
     }
 
+    // Smooth cross-fade whenever the language toggles: fades the whole app
+    // out (~120ms) then back in (~220ms) around the instant the text/direction
+    // actually flips, instead of an abrupt snap. This is a pure render-phase
+    // alpha transform (graphicsLayer) applied below — it does NOT recompose
+    // or recreate any screen, so it can never re-trigger a LaunchedEffect(Unit)
+    // block (that was the bug with the old Crossfade-based approach).
+    val langFadeAlpha = remember { Animatable(1f) }
+    var isFirstLangEmission by remember { mutableStateOf(true) }
+    LaunchedEffect(lang) {
+        if (isFirstLangEmission) {
+            isFirstLangEmission = false
+            return@LaunchedEffect
+        }
+        langFadeAlpha.animateTo(0f, tween(120))
+        langFadeAlpha.animateTo(1f, tween(220))
+    }
+
     CompositionLocalProvider(LocalLayoutDirection provides appDirection) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Black)
+                .graphicsLayer { alpha = langFadeAlpha.value }
         ) {
             // Header is outside NavHost so the back button stays fixed and does not
         // participate in the screen open/close staggered transition.
@@ -143,6 +167,7 @@ fun AlHosanApp() {
             ScreenHeader(
                 showBack = currentRoute != "login",
                 showLang = currentRoute == "login",
+                showHistory = currentRoute == "login",
                 langEnabled = !isChecking,
                 blurred = isChecking,
                 title = when (currentRoute) {
@@ -156,7 +181,8 @@ fun AlHosanApp() {
                         "history" -> navController.popBackStack()
                     }
                 },
-                onLangToggle = viewModel::toggleLang
+                onLangToggle = viewModel::toggleLang,
+                onHistoryClick = { navController.navigate("history") }
             )
             HeaderSpacer()
         }
@@ -183,7 +209,6 @@ fun AlHosanApp() {
                 composable("login") {
                     LoginScreen(
                         onResultReady = { navController.navigate("result") },
-                        onHistoryClick = { navController.navigate("history") },
                         viewModel = viewModel
                     )
                 }
@@ -231,16 +256,18 @@ fun AlHosanApp() {
 fun ScreenHeader(
     showBack: Boolean,
     showLang: Boolean = true,
+    showHistory: Boolean = false,
     langEnabled: Boolean = true,
     title: String? = null,
     blurred: Boolean = false,
     onBack: () -> Unit,
-    onLangToggle: () -> Unit
+    onLangToggle: () -> Unit,
+    onHistoryClick: () -> Unit = {}
 ) {
     // Language globe is always on the PHYSICAL RIGHT regardless of language.
     // Back arrow follows platform convention: left in English, right in Arabic.
-    // When Arabic shows the back button it sits just to the left of the globe
-    // on the same (right) side; in English the back button is on the far left.
+    // History button (login screen only) mirrors the globe on the PHYSICAL
+    // LEFT — same circular style, opposite corner.
     // Forcing LTR on the Row lets us place children by absolute physical
     // positions using isRtl.
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -279,16 +306,37 @@ fun ScreenHeader(
                     .padding(horizontal = 14.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-            // Left corner (physical):
-            //   EN: Back button here
-            //   AR: empty
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (!isRtl) {
-                    // EN: back on left
-                    HeaderButton(visible = showBack, onClick = onBack) {
+                // ── Left corner (physical), fixed 40dp — ALWAYS composed. ──
+                // EN: back button. AR: history button (login only). Neither
+                // combination overlaps (history only shows on login, where
+                // showBack is always false), so a single fixed slot is safe.
+                // Visibility is alpha/scale ONLY via graphicsLayer, which is a
+                // render-phase transform — it can NEVER trigger a relayout,
+                // so this button's on-screen position is physically
+                // impossible to shift. This is what finally kills the
+                // back-button "jump" bug for good.
+                Box(
+                    modifier = Modifier.width(40.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    val enBackShown = !isRtl && showBack
+                    val enBackAlpha by animateFloatAsState(
+                        targetValue = if (enBackShown) 1f else 0f,
+                        animationSpec = tween(160), label = "enBackAlpha"
+                    )
+                    val enBackScale by animateFloatAsState(
+                        targetValue = if (enBackShown) 1f else 0.85f,
+                        animationSpec = tween(160), label = "enBackScale"
+                    )
+                    CircleHeaderButton(
+                        onClick = onBack,
+                        enabled = enBackShown,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = enBackAlpha
+                            scaleX = enBackScale
+                            scaleY = enBackScale
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -296,29 +344,67 @@ fun ScreenHeader(
                             modifier = Modifier.size(18.dp)
                         )
                     }
+
+                    val historyAlpha by animateFloatAsState(
+                        targetValue = if (showHistory) 1f else 0f,
+                        animationSpec = tween(160), label = "historyAlpha"
+                    )
+                    val historyScale by animateFloatAsState(
+                        targetValue = if (showHistory) 1f else 0.85f,
+                        animationSpec = tween(160), label = "historyScale"
+                    )
+                    CircleHeaderButton(
+                        onClick = onHistoryClick,
+                        enabled = showHistory,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = historyAlpha
+                            scaleX = historyScale
+                            scaleY = historyScale
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = "History",
+                            tint = Gold,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
-            }
 
-            // Center spacer
-            Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.weight(1f))
 
-            // Right corner:
-            //   AR: Back button (flipped to point right) + gap + Globe
-            //   EN: just Globe
-            // Fixed-width container (2 slots + gap) so the Row never reflows
-            // while one button fades out and the other fades in at the same
-            // time — without this, the transient overlap during the crossfade
-            // made the whole group visibly jump for a split second.
-            Box(
-                modifier = Modifier.width(40.dp + 6.dp + 40.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // ── Right corner: AR back (flipped) + gap + Globe. ──
+                // Same always-composed / alpha-only pattern — this fixed
+                // 86dp box was already jump-free positionally, but now the
+                // buttons inside it are ALSO alpha-only for full consistency
+                // and to remove the very last possibility of a settle-time
+                // mismatch between the fade and any layout pass.
+                Box(
+                    modifier = Modifier.width(40.dp + 6.dp + 40.dp),
+                    contentAlignment = Alignment.CenterEnd
                 ) {
-                    if (isRtl) {
-                        HeaderButton(visible = showBack, onClick = onBack) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val arBackShown = isRtl && showBack
+                        val arBackAlpha by animateFloatAsState(
+                            targetValue = if (arBackShown) 1f else 0f,
+                            animationSpec = tween(160), label = "arBackAlpha"
+                        )
+                        val arBackScale by animateFloatAsState(
+                            targetValue = if (arBackShown) 1f else 0.85f,
+                            animationSpec = tween(160), label = "arBackScale"
+                        )
+                        CircleHeaderButton(
+                            onClick = onBack,
+                            enabled = arBackShown,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = arBackAlpha
+                                scaleX = arBackScale
+                                scaleY = arBackScale
+                            }
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
@@ -328,44 +414,35 @@ fun ScreenHeader(
                                     .graphicsLayer { scaleX = -1f }
                             )
                         }
-                    }
-                    HeaderButton(
-                        visible = showLang,
-                        onClick = onLangToggle,
-                        enabled = langEnabled
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Language,
-                            contentDescription = "Language",
-                            tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                } // end Row
-            } // end fixed-width Box
-            } // end buttons Row
-        } // end title Box
-    }
-}
 
-@Composable
-private fun HeaderButton(
-    visible: Boolean,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    // Fixed-duration tween for BOTH fade and scale (no spring). A spring's
-    // settle time is variable and can visibly outlast the fade, which read
-    // as the button "landing" in the wrong spot for a moment before
-    // snapping to its final position. Matching short tweens guarantee the
-    // button is fully settled the instant the animation says it's done.
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.85f, animationSpec = tween(160)),
-        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.85f, animationSpec = tween(140))
-    ) {
-        CircleHeaderButton(onClick = onClick, enabled = enabled, content = content)
+                        val langAlpha by animateFloatAsState(
+                            targetValue = if (showLang) 1f else 0f,
+                            animationSpec = tween(160), label = "langAlpha"
+                        )
+                        val langScale by animateFloatAsState(
+                            targetValue = if (showLang) 1f else 0.85f,
+                            animationSpec = tween(160), label = "langScale"
+                        )
+                        CircleHeaderButton(
+                            onClick = onLangToggle,
+                            enabled = showLang && langEnabled,
+                            modifier = Modifier.graphicsLayer {
+                                alpha = langAlpha
+                                scaleX = langScale
+                                scaleY = langScale
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Language,
+                                contentDescription = "Language",
+                                tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
