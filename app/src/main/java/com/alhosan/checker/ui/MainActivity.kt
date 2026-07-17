@@ -138,21 +138,27 @@ fun AlHosanApp() {
         }
     }
 
-    // Smooth cross-fade whenever the language toggles: fades the whole app
-    // out (~120ms) then back in (~220ms) around the instant the text/direction
-    // actually flips, instead of an abrupt snap. This is a pure render-phase
-    // alpha transform (graphicsLayer) applied below — it does NOT recompose
+    // Language toggle now uses the SAME slide+fade motion language as the
+    // screen-to-screen transitions (alHosanStaggeredEnter/Exit) instead of a
+    // generic alpha-only fade — applied ONLY to the content Box below, never
+    // to the header, so the header's own button animations (lang/back/
+    // history alpha+scale) are never doubled up with this effect. Pure
+    // graphicsLayer transform (alpha + translationX) — does not recompose
     // or recreate any screen, so it can never re-trigger a LaunchedEffect(Unit)
     // block (that was the bug with the old Crossfade-based approach).
-    val langFadeAlpha = remember { Animatable(1f) }
+    val langAlpha = remember { Animatable(1f) }
+    val langOffsetXDp = remember { Animatable(0f) }
     var isFirstLangEmission by remember { mutableStateOf(true) }
     LaunchedEffect(lang) {
         if (isFirstLangEmission) {
             isFirstLangEmission = false
             return@LaunchedEffect
         }
-        langFadeAlpha.animateTo(0f, tween(120))
-        langFadeAlpha.animateTo(1f, tween(220))
+        launch { langAlpha.animateTo(0f, tween(180)) }
+        langOffsetXDp.animateTo(40f, tween(260))
+        langOffsetXDp.snapTo(-40f)
+        launch { langAlpha.animateTo(1f, tween(280)) }
+        langOffsetXDp.animateTo(0f, tween(360))
     }
 
     CompositionLocalProvider(LocalLayoutDirection provides appDirection) {
@@ -160,7 +166,6 @@ fun AlHosanApp() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Black)
-                .graphicsLayer { alpha = langFadeAlpha.value }
         ) {
             // Header is outside NavHost so the back button stays fixed and does not
         // participate in the screen open/close staggered transition.
@@ -188,7 +193,15 @@ fun AlHosanApp() {
             HeaderSpacer()
         }
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .graphicsLayer {
+                    alpha = langAlpha.value
+                    translationX = langOffsetXDp.value.dp.toPx()
+                }
+        ) {
             NavHost(
                 navController = navController,
                 startDestination = "splash",
@@ -374,72 +387,69 @@ fun ScreenHeader(
 
                 Spacer(Modifier.weight(1f))
 
-                // ── Right corner: AR back (flipped) + gap + Globe. ──
-                // Same always-composed / alpha-only pattern — this fixed
-                // 86dp box was already jump-free positionally, but now the
-                // buttons inside it are ALSO alpha-only for full consistency
-                // and to remove the very last possibility of a settle-time
-                // mismatch between the fade and any layout pass.
+                // ── Right corner: back button (AR) OR globe — never both at
+                // once (showLang is only ever true on login, showBack only
+                // ever true elsewhere), so they safely overlay in the SAME
+                // fixed 40dp slot. This pins whichever one is active exactly
+                // to the physical right edge — no reserved space for the
+                // other, which was making the back button sit ~46dp short of
+                // the edge whenever the (invisible) globe button still
+                // silently reserved its own width beside it.
                 Box(
-                    modifier = Modifier.width(40.dp + 6.dp + 40.dp),
+                    modifier = Modifier.width(40.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    val arBackShown = isRtl && showBack
+                    val arBackAlpha by animateFloatAsState(
+                        targetValue = if (arBackShown) 1f else 0f,
+                        animationSpec = tween(160), label = "arBackAlpha"
+                    )
+                    val arBackScale by animateFloatAsState(
+                        targetValue = if (arBackShown) 1f else 0.85f,
+                        animationSpec = tween(160), label = "arBackScale"
+                    )
+                    CircleHeaderButton(
+                        onClick = onBack,
+                        enabled = arBackShown,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = arBackAlpha
+                            scaleX = arBackScale
+                            scaleY = arBackScale
+                        }
                     ) {
-                        val arBackShown = isRtl && showBack
-                        val arBackAlpha by animateFloatAsState(
-                            targetValue = if (arBackShown) 1f else 0f,
-                            animationSpec = tween(160), label = "arBackAlpha"
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Gold,
+                            modifier = Modifier
+                                .size(18.dp)
+                                .graphicsLayer { scaleX = -1f }
                         )
-                        val arBackScale by animateFloatAsState(
-                            targetValue = if (arBackShown) 1f else 0.85f,
-                            animationSpec = tween(160), label = "arBackScale"
-                        )
-                        CircleHeaderButton(
-                            onClick = onBack,
-                            enabled = arBackShown,
-                            modifier = Modifier.graphicsLayer {
-                                alpha = arBackAlpha
-                                scaleX = arBackScale
-                                scaleY = arBackScale
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Gold,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .graphicsLayer { scaleX = -1f }
-                            )
-                        }
+                    }
 
-                        val langAlpha by animateFloatAsState(
-                            targetValue = if (showLang) 1f else 0f,
-                            animationSpec = tween(160), label = "langAlpha"
-                        )
-                        val langScale by animateFloatAsState(
-                            targetValue = if (showLang) 1f else 0.85f,
-                            animationSpec = tween(160), label = "langScale"
-                        )
-                        CircleHeaderButton(
-                            onClick = onLangToggle,
-                            enabled = showLang && langEnabled,
-                            modifier = Modifier.graphicsLayer {
-                                alpha = langAlpha
-                                scaleX = langScale
-                                scaleY = langScale
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Language,
-                                contentDescription = "Language",
-                                tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
-                                modifier = Modifier.size(18.dp)
-                            )
+                    val langAlpha by animateFloatAsState(
+                        targetValue = if (showLang) 1f else 0f,
+                        animationSpec = tween(160), label = "langAlpha"
+                    )
+                    val langScale by animateFloatAsState(
+                        targetValue = if (showLang) 1f else 0.85f,
+                        animationSpec = tween(160), label = "langScale"
+                    )
+                    CircleHeaderButton(
+                        onClick = onLangToggle,
+                        enabled = showLang && langEnabled,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = langAlpha
+                            scaleX = langScale
+                            scaleY = langScale
                         }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Language,
+                            contentDescription = "Language",
+                            tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }

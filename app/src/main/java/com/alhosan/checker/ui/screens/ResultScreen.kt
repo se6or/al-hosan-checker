@@ -224,7 +224,7 @@ fun ResultScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp)
             ) {
             // ─── Capture zone (matches HTML #capture-zone) ───
             ResultCaptureContent(
@@ -682,7 +682,7 @@ private fun ResultCaptureContent(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(6.dp))
     }
 
     val devices: @Composable () -> Unit = {
