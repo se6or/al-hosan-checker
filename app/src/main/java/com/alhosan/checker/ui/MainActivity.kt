@@ -41,6 +41,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -454,10 +455,11 @@ fun ScreenHeader(
 private fun CircleHeaderButton(
     onClick: () -> Unit,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
             .background(SurfaceBlack, CircleShape)
