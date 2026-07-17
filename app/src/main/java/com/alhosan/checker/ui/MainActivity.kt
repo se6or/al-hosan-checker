@@ -4,7 +4,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -252,17 +254,24 @@ fun ScreenHeader(
             // Centered page title — a separate layer so it's positioned
             // relative to the FULL header width, independent of whichever
             // combination of back/lang buttons happens to be visible.
-            if (title != null) {
-                Text(
-                    text = title,
-                    color = Gold,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 64.dp)
-                )
+            AnimatedContent(
+                targetState = title,
+                transitionSpec = {
+                    fadeIn(tween(280, delayMillis = 80)) togetherWith fadeOut(tween(160))
+                },
+                modifier = Modifier.align(Alignment.Center),
+                label = "header-title"
+            ) { t ->
+                if (t != null) {
+                    Text(
+                        text = t,
+                        color = Gold,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        modifier = Modifier.padding(horizontal = 64.dp)
+                    )
+                }
             }
             Row(
                 modifier = Modifier
@@ -346,10 +355,15 @@ private fun HeaderButton(
     enabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    // Fixed-duration tween for BOTH fade and scale (no spring). A spring's
+    // settle time is variable and can visibly outlast the fade, which read
+    // as the button "landing" in the wrong spot for a moment before
+    // snapping to its final position. Matching short tweens guarantee the
+    // button is fully settled the instant the animation says it's done.
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.7f, animationSpec = spring()),
-        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.7f, animationSpec = spring())
+        enter = fadeIn(tween(160)) + scaleIn(initialScale = 0.85f, animationSpec = tween(160)),
+        exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.85f, animationSpec = tween(140))
     ) {
         CircleHeaderButton(onClick = onClick, enabled = enabled, content = content)
     }

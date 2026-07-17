@@ -241,6 +241,16 @@ fun ResultScreen(
             // ─── Action row: Save / Refresh + M3U + Export ───
             // Uses Arrangement.spacedBy with small gap and equal-ish weights so
             // the row fits within the card's horizontal padding (no overflow).
+            // Wrapped in its own AnimatedVisibility with the SAME slide+fade
+            // used for the whole result screen transition, so the buttons get
+            // a visible entrance (not just an exit when leaving the screen).
+            var buttonsVisible by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { buttonsVisible = true }
+            AnimatedVisibility(
+                visible = buttonsVisible,
+                enter = alHosanStaggeredEnter(durationMs = 360, delayMs = 120),
+                exit = alHosanStaggeredExit(durationMs = 260)
+            ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -294,6 +304,7 @@ fun ResultScreen(
                     )
                 }
             }
+            } // end buttons AnimatedVisibility
 
             Spacer(modifier = Modifier.height(20.dp))
         }

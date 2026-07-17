@@ -3,7 +3,6 @@ package com.alhosan.checker.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -973,13 +972,11 @@ private fun RowScope.ContentCountItem(
  * parallel via async/coroutineScope) — there is no shared state here that
  * ties one field's animation to another's.
  *
- * - While the real number is still pending, shows a lightweight pulsing
- *   placeholder — NOT a fake climbing number. A fabricated random count
- *   that can wander arbitrarily high before the real value replaces it is
- *   misleading precision; this widget never invents a number.
- * - The instant the real count arrives, it animates smoothly from the
- *   current displayed value (0 while it was pending) up to the exact real
- *   number — once, no reset, no overshoot, no restart.
+ * - While the real number is still pending, the field shows nothing at all
+ *   (no placeholder, no pulsing shape) — an invented visual is still an
+ *   invented visual. The moment the real count arrives it counts up once,
+ *   smoothly and accurately, from 0 to the exact number. No reset, no
+ *   overshoot, no re-counting after it finishes.
  * - isLoading = false (image-export capture): renders the final value
  *   directly, no coroutine, guaranteeing the exported PNG is correct.
  * - LaunchedEffect keyed ONLY on [target] — never restarts when the global
@@ -996,9 +993,6 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
 
     var display by remember { mutableStateOf(0) }
     var done    by remember { mutableStateOf(false) }
-    // Pulsing alpha shown only while the real number is still pending —
-    // an honest "waiting" indicator instead of a fabricated rising number.
-    val pendingAlpha = remember { Animatable(1f) }
 
     LaunchedEffect(target) {
         // ── Static capture (isLoading = false at launch time) ────────────────
@@ -1010,18 +1004,9 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
         // ── Live animation ────────────────────────────────────────────────────
         when {
             target == null -> {
-                // Pending: server hasn't replied yet. No fake number — just a
-                // gentle pulse on "—" so the user knows this field is still
-                // working, without implying a false precision.
+                // Pending: server hasn't replied yet. Show nothing — no fake
+                // number, no placeholder shape to blink or pulse.
                 done = false
-                pendingAlpha.snapTo(1f)
-                pendingAlpha.animateTo(
-                    targetValue = 0.35f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(650, easing = LinearEasing),
-                        repeatMode = RepeatMode.Reverse
-                    )
-                )
             }
             target == 0 -> {
                 // Real zero — snap immediately, nothing to animate.
@@ -1029,9 +1014,9 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
                 done    = true
             }
             else -> {
-                // Real positive count — animate smoothly from whatever is
-                // currently displayed (0, since pending shows "—" not a
-                // number) up to the exact real value. Single pass, no reset.
+                // Real positive count — animate smoothly from 0 (pending never
+                // displayed a number) up to the exact real value. One pass,
+                // no reset, no re-count once finished.
                 val t = target ?: return@LaunchedEffect
                 done = false
                 val start = display
@@ -1054,11 +1039,10 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
     Text(
         text  = when {
             !isLoading -> (target ?: 0).toString()
-            isPending  -> "—"
+            isPending  -> ""
             else       -> display.toString()
         },
         color = if (!isLoading || done) Color.White else Gold,
-        modifier = if (isPending) Modifier.graphicsLayer { alpha = pendingAlpha.value } else Modifier,
         fontWeight = FontWeight.Black,
         fontSize   = 18.sp
     )
