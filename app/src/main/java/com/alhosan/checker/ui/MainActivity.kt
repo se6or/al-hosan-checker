@@ -283,125 +283,114 @@ fun ScreenHeader(
     onLangToggle: () -> Unit,
     onHistoryClick: () -> Unit = {}
 ) {
-    // Language globe is always on the PHYSICAL RIGHT regardless of language.
-    // Back arrow follows platform convention: left in English, right in Arabic.
-    // History button (login screen only) mirrors the globe on the PHYSICAL
-    // LEFT — same circular style, opposite corner.
-    // Forcing LTR on the Row lets us place children by absolute physical
-    // positions using isRtl.
+    // No forced LayoutDirection override here — that was a likely source of
+    // touch-coordinate bugs (back button visually present but not clickable).
+    // Instead we use the REAL ambient direction and simply choose which
+    // group of buttons to compose FIRST vs SECOND in the Row, since Compose
+    // naturally mirrors Row child order for RTL. AutoMirrored icons (the
+    // back arrow) also auto-flip correctly on their own with real RTL —
+    // no manual scaleX hacks needed either.
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .then(if (blurred) Modifier.blur(12.dp) else Modifier)
-        ) {
-            // Centered page title — a separate layer so it's positioned
-            // relative to the FULL header width, independent of whichever
-            // combination of back/lang buttons happens to be visible.
-            AnimatedContent(
-                targetState = title,
-                transitionSpec = {
-                    fadeIn(tween(280, delayMillis = 80)) togetherWith fadeOut(tween(160))
-                },
-                modifier = Modifier.align(Alignment.Center),
-                label = "header-title"
-            ) { t ->
-                if (t != null) {
-                    Text(
-                        text = t,
-                        color = Gold,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        modifier = Modifier.padding(horizontal = 64.dp)
+
+    // Globe must always end up on the PHYSICAL right, back(AR)/globe share
+    // that corner; history/back(EN) always share the PHYSICAL left corner.
+    //   - Natural LTR Row: 1st child = physical left, 2nd child = physical right
+    //   - Natural RTL Row: 1st child = physical right, 2nd child = physical left
+    // So the group that must land on the right is composed 2nd in LTR, but
+    // 1st in RTL — and vice-versa for the left group.
+    @Composable
+    fun LeftGroupSlot() {
+        Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.Center) {
+            val enBackShown = !isRtl && showBack
+            if (enBackShown) {
+                CircleHeaderButton(onClick = onBack, enabled = true) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else if (showHistory) {
+                CircleHeaderButton(onClick = onHistoryClick, enabled = true) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = "History",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // ── Left corner (physical), fixed 40dp — ALWAYS composed. ──
-                // EN: back button. AR: history button (login only). Neither
-                // combination overlaps (history only shows on login, where
-                // showBack is always false), so a single fixed slot is safe.
-                // Visibility is alpha/scale ONLY via graphicsLayer, which is a
-                // render-phase transform — it can NEVER trigger a relayout,
-                // so this button's on-screen position is physically
-                // impossible to shift. This is what finally kills the
-                // back-button "jump" bug for good.
-                Box(
-                    modifier = Modifier.width(40.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    // Only ONE of these is ever composed at a time — overlaying
-                    // both (even with the invisible one "disabled") silently
-                    // blocked clicks meant for the one underneath, because
-                    // Compose's clickable(enabled=false) still consumes touch
-                    // input instead of passing it through. A single conditional
-                    // child fixes that, and stays 100% jump-free since the box
-                    // itself is always a fixed 40dp regardless of which button
-                    // (or neither) is inside it.
-                    val enBackShown = !isRtl && showBack
-                    if (enBackShown) {
-                        CircleHeaderButton(onClick = onBack, enabled = true) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Gold,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    } else if (showHistory) {
-                        CircleHeaderButton(onClick = onHistoryClick, enabled = true) {
-                            Icon(
-                                imageVector = Icons.Default.History,
-                                contentDescription = "History",
-                                tint = Gold,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
+        }
+    }
 
-                Spacer(Modifier.weight(1f))
-
-                // ── Right corner: back button (AR) OR globe — never both at
-                // once (showLang is only ever true on login, showBack only
-                // ever true elsewhere). Single conditional child, same
-                // click-blocking fix as the left slot above — pins whichever
-                // one is active exactly to the physical right edge.
-                Box(
-                    modifier = Modifier.width(40.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    val arBackShown = isRtl && showBack
-                    if (arBackShown) {
-                        CircleHeaderButton(onClick = onBack, enabled = true) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Gold,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .graphicsLayer { scaleX = -1f }
-                            )
-                        }
-                    } else if (showLang) {
-                        CircleHeaderButton(onClick = onLangToggle, enabled = langEnabled) {
-                            Icon(
-                                imageVector = Icons.Default.Language,
-                                contentDescription = "Language",
-                                tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
+    @Composable
+    fun RightGroupSlot() {
+        Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.Center) {
+            val arBackShown = isRtl && showBack
+            if (arBackShown) {
+                CircleHeaderButton(onClick = onBack, enabled = true) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
+            } else if (showLang) {
+                CircleHeaderButton(onClick = onLangToggle, enabled = langEnabled) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = "Language",
+                        tint = if (langEnabled) Gold else Gold.copy(alpha = 0.35f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .then(if (blurred) Modifier.blur(12.dp) else Modifier)
+    ) {
+        // Centered page title — a separate layer so it's positioned
+        // relative to the FULL header width, independent of whichever
+        // combination of back/lang buttons happens to be visible.
+        AnimatedContent(
+            targetState = title,
+            transitionSpec = {
+                fadeIn(tween(280, delayMillis = 80)) togetherWith fadeOut(tween(160))
+            },
+            modifier = Modifier.align(Alignment.Center),
+            label = "header-title"
+        ) { t ->
+            if (t != null) {
+                Text(
+                    text = t,
+                    color = Gold,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 64.dp)
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isRtl) {
+                RightGroupSlot()
+                LeftGroupSlot()
+            } else {
+                LeftGroupSlot()
+                RightGroupSlot()
             }
         }
     }
