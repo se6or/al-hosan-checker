@@ -14,6 +14,7 @@ import kotlinx.serialization.json.Json
 import java.io.BufferedReader
 import java.io.PushbackInputStream
 import java.io.StringReader
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
@@ -243,11 +244,26 @@ class CheckerRepository {
                 // Some Xtream panels return slightly different shapes, so we accept
                 // any JSON that has user_info OR user_info.username OR just an
                 // array (older panels) and try to extract whatever we can.
-                val data = try {
-                    json.parseToJsonElement(body).jsonObject
+                //
+                // Real-world panels that DO work fine in other IPTV apps but were
+                // failing here turned out to send one of:
+                //   - a UTF-8 BOM or stray whitespace/newlines before the JSON
+                //   - the whole object wrapped in a single-element JSON array
+                //     (e.g. "[{...}]" instead of "{...}")
+                // Both are handled below instead of failing outright.
+                val cleanBody = body.trim().removePrefix("\uFEFF")
+                val rootElement = try {
+                    json.parseToJsonElement(cleanBody)
                 } catch (e: Exception) {
                     // Not JSON at all — could be an HTML error page from a proxy
                     return@withContext Result.failure(Exception("not_xtream"))
+                }
+                val data = when (rootElement) {
+                    is JsonObject -> rootElement
+                    is JsonArray -> rootElement.firstOrNull()?.let { first ->
+                        (first as? JsonObject)
+                    } ?: return@withContext Result.failure(Exception("not_xtream"))
+                    else -> return@withContext Result.failure(Exception("not_xtream"))
                 }
 
                 // Accept the response if it has user_info (standard Xtream API),
