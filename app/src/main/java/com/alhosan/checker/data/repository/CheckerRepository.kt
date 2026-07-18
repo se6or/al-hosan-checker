@@ -205,11 +205,19 @@ class CheckerRepository {
 
     /** Strip the scheme (http:// or https://) from a host string. Returns (scheme, hostWithoutScheme). */
     private fun stripScheme(host: String): Pair<String?, String> {
-        return when {
+        val (scheme, rest) = when {
             host.startsWith("https://", ignoreCase = true) -> "https" to host.substring(8)
             host.startsWith("http://", ignoreCase = true) -> "http" to host.substring(7)
             else -> null to host
         }
+        // Some users paste a full URL (e.g. a player_api.php link, an M3U
+        // link pasted into the Xtream host field, or a URL with query
+        // params) instead of just "host:port". Keep only the host[:port]
+        // part — anything after the first '/', '?', or '#' is stripped so
+        // we don't end up building a broken double-path request like
+        // "http://server.com/get.php/player_api.php?...".
+        val cleanRest = rest.substringBefore('/').substringBefore('?').substringBefore('#')
+        return scheme to cleanRest
     }
 
     /** One attempt to fetch the Xtream API for a given (scheme+host, user, pass). */
