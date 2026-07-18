@@ -9,7 +9,6 @@ import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.media.MediaActionSound
 import android.os.Build
 import android.view.View
 import android.widget.FrameLayout
@@ -17,9 +16,17 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -61,8 +68,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
@@ -154,7 +165,7 @@ fun ResultScreen(
         if (isCapturingImage) return
         scope.launch {
             isCapturingImage = true
-            val cameraSound = playCameraCaptureSound()
+            playSaveChime(context)
             delay(120)
 
             val success = try {
@@ -177,7 +188,6 @@ fun ResultScreen(
             } finally {
                 delay(180)
                 isCapturingImage = false
-                try { cameraSound?.release() } catch (_: Exception) {}
             }
             viewModel.showToast(
                 if (success) lang.tExportOk else lang.tExportFail
@@ -334,18 +344,36 @@ fun ResultScreen(
             RefreshOverlay(lang = lang, showSuccess = showUpdateSuccess)
         }
 
-        // ─── Screenshot-style flash while saving image ───
+        // ─── Modern capture effect while saving image: soft flash + an
+        // expanding ring pulse from the center, instead of a flat white
+        // flash — synced with the new save chime. ───
         AnimatedVisibility(
             visible = isCapturingImage,
-            enter = fadeIn(animationSpec = tween(55)),
-            exit = fadeOut(animationSpec = tween(220)),
+            enter = fadeIn(animationSpec = tween(70)),
+            exit = fadeOut(animationSpec = tween(320, easing = FastOutSlowInEasing)),
             modifier = Modifier.fillMaxSize()
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.38f))
-            )
+            val ringProgress = remember { Animatable(0f) }
+            LaunchedEffect(Unit) {
+                ringProgress.animateTo(1f, tween(520, easing = FastOutSlowInEasing))
+            }
+            Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White.copy(alpha = 0.22f))
+                )
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val maxRadius = size.maxDimension * 0.55f
+                    val radius = maxRadius * ringProgress.value
+                    drawCircle(
+                        color = Color.White.copy(alpha = (1f - ringProgress.value) * 0.9f),
+                        radius = radius,
+                        center = center,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.dp.toPx())
+                    )
+                }
+            }
         }
 
         // ─── Toast at bottom ───
@@ -375,6 +403,7 @@ fun ResultScreen(
  */
 @Composable
 private fun RefreshOverlay(lang: AppLang, showSuccess: Boolean) {
+    val ctx = LocalContext.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -390,58 +419,145 @@ private fun RefreshOverlay(lang: AppLang, showSuccess: Boolean) {
             ),
         contentAlignment = Alignment.Center
     ) {
-        if (showSuccess) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(Color(0xFF2ECC71), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(34.dp)
+        // Crossfade + pop between the spinner content and the success
+        // checkmark — previously this was a plain `if/else` swap with no
+        // transition at all, so "تم التحديث" just snapped into existence.
+        androidx.compose.animation.AnimatedContent(
+            targetState = showSuccess,
+            transitionSpec = {
+                (fadeIn(tween(260)) + scaleIn(initialScale = 0.8f, animationSpec = tween(260)))
+                    .togetherWith(fadeOut(tween(180)) + scaleOut(targetScale = 0.85f, animationSpec = tween(180)))
+            },
+            label = "refresh-overlay-state"
+        ) { success ->
+            if (success) {
+                // Play the confirmation chime the instant this content enters —
+                // synced with the checkmark's draw-in animation below.
+                LaunchedEffect(Unit) { playSuccessChime(ctx) }
+
+                val checkProgress = remember { Animatable(0f) }
+                val popScale = remember { Animatable(0.6f) }
+                LaunchedEffect(Unit) {
+                    launch { popScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy)) }
+                    checkProgress.animateTo(1f, tween(420, easing = FastOutSlowInEasing))
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .graphicsLayer {
+                                scaleX = popScale.value
+                                scaleY = popScale.value
+                            }
+                            .background(Color(0xFF2ECC71), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Checkmark "fills in" as a stroke draw-in, not a static
+                        // icon — synced with the chime above.
+                        Canvas(modifier = Modifier.size(34.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            val p1 = Offset(w * 0.20f, h * 0.55f)
+                            val p2 = Offset(w * 0.42f, h * 0.76f)
+                            val p3 = Offset(w * 0.82f, h * 0.28f)
+                            val firstLegLen = (p2 - p1).getDistance()
+                            val secondLegLen = (p3 - p2).getDistance()
+                            val totalLen = firstLegLen + secondLegLen
+                            val drawn = checkProgress.value * totalLen
+
+                            val path = Path()
+                            path.moveTo(p1.x, p1.y)
+                            if (drawn <= firstLegLen) {
+                                val t = if (firstLegLen == 0f) 0f else drawn / firstLegLen
+                                path.lineTo(
+                                    p1.x + (p2.x - p1.x) * t,
+                                    p1.y + (p2.y - p1.y) * t
+                                )
+                            } else {
+                                path.lineTo(p2.x, p2.y)
+                                val remaining = drawn - firstLegLen
+                                val t = if (secondLegLen == 0f) 0f else (remaining / secondLegLen).coerceIn(0f, 1f)
+                                path.lineTo(
+                                    p2.x + (p3.x - p2.x) * t,
+                                    p2.y + (p3.y - p2.y) * t
+                                )
+                            }
+                            drawPath(
+                                path = path,
+                                color = Color.White,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                                    width = 4.5.dp.toPx(),
+                                    cap = StrokeCap.Round,
+                                    join = StrokeJoin.Round
+                                )
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = if (lang == AppLang.AR) "تم التحديث" else "Updated",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = if (lang == AppLang.AR) "تم التحديث" else "Updated",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-            }
-        } else {
-            com.alhosan.checker.ui.components.StaggeredColumn(perItemDelayMs = 70) {
-                Item {
-                    ShinyLogo(
-                        modifier = Modifier.size(88.dp)
-                    )
-                }
-                Item {
-                    Spacer(modifier = Modifier.height(18.dp))
-                    ShinyText(
-                        text = if (lang == AppLang.AR) "جارِ التحديث" else "Updating",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        rtl = lang == AppLang.AR,
-                        durationMs = 1800
-                    )
+            } else {
+                com.alhosan.checker.ui.components.StaggeredColumn(perItemDelayMs = 70) {
+                    Item {
+                        ShinyLogo(
+                            modifier = Modifier.size(88.dp)
+                        )
+                    }
+                    Item {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        ShinyText(
+                            text = if (lang == AppLang.AR) "جارِ التحديث" else "Updating",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            rtl = lang == AppLang.AR,
+                            durationMs = 1800
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-private fun playCameraCaptureSound(): MediaActionSound? {
-    return try {
-        MediaActionSound().apply {
-            play(MediaActionSound.SHUTTER_CLICK)
-        }
+/**
+ * A short, pleasant ascending two-tone confirmation chime — synthesized with
+ * ToneGenerator, not a bundled audio file. Apple's App-Store download-complete
+ * sound is a proprietary asset we can't legally bundle or reproduce; this is
+ * an original two-note "success" chime in the same spirit (bright, quick,
+ * ascending) rather than a copy of it.
+ */
+private fun playSuccessChime(context: android.content.Context) {
+    try {
+        val tg = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 85)
+        tg.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 90)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            tg.startTone(android.media.ToneGenerator.TONE_PROP_ACK, 140)
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tg.release() }, 220)
+        }, 90)
     } catch (_: Exception) {
-        null
+        // Silent fallback — never crash the update flow over a missing chime.
+    }
+}
+
+/**
+ * A short, modern single-tone "saved" chime — lighter and quicker than the
+ * update-success chime (playSuccessChime), since this fires on every image
+ * export rather than a rarer completion event. Replaces the old dated
+ * MediaActionSound.SHUTTER_CLICK camera-shutter sound.
+ */
+private fun playSaveChime(context: android.content.Context) {
+    try {
+        val tg = android.media.ToneGenerator(android.media.AudioManager.STREAM_NOTIFICATION, 80)
+        tg.startTone(android.media.ToneGenerator.TONE_PROP_BEEP2, 110)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ tg.release() }, 200)
+    } catch (_: Exception) {
+        // Silent fallback — never crash the export flow over a missing chime.
     }
 }
 

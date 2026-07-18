@@ -1016,7 +1016,7 @@ private fun CountUpNumber(count: String, isLoading: Boolean) {
                 done = false
                 while (true) {
                     display += 1
-                    delay(12)
+                    delay(30)
                 }
             }
             target == 0 -> {
