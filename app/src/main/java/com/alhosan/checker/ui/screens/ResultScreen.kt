@@ -252,15 +252,12 @@ fun ResultScreen(
             // Uses Arrangement.spacedBy with small gap and equal-ish weights so
             // the row fits within the card's horizontal padding (no overflow).
             // Wrapped in its own AnimatedVisibility with the SAME slide+fade
-            // used for the whole result screen transition, so the buttons get
-            // a visible entrance (not just an exit when leaving the screen).
-            var buttonsVisible by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { buttonsVisible = true }
-            AnimatedVisibility(
-                visible = buttonsVisible,
-                enter = alHosanStaggeredEnter(durationMs = 360, delayMs = 120),
-                exit = alHosanStaggeredExit(durationMs = 260)
-            ) {
+            // ─── Action row: Save / Refresh + M3U + Export ───
+            // Uses Arrangement.spacedBy with small gap and equal-ish weights so
+            // the row fits within the card's horizontal padding (no overflow).
+            // Always directly composed (no AnimatedVisibility indirection) —
+            // guarantees the buttons are never accidentally left unclickable
+            // by a stuck animation state.
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -314,7 +311,6 @@ fun ResultScreen(
                     )
                 }
             }
-            } // end buttons AnimatedVisibility
 
             Spacer(modifier = Modifier.height(20.dp))
         }
@@ -330,9 +326,21 @@ fun ResultScreen(
                 wasChecking = true
             } else if (wasChecking) {
                 wasChecking = false
-                showUpdateSuccess = true
-                delay(900)
-                showUpdateSuccess = false
+                // CRITICAL FIX: only show the success checkmark if the
+                // refresh actually succeeded. Previously this fired
+                // unconditionally the instant isChecking flipped false —
+                // meaning a FAILED refresh (bad response, network error,
+                // server down) still showed "تم التحديث" as if it worked,
+                // silently hiding real failures from the user.
+                if (state is CheckerState.Success) {
+                    showUpdateSuccess = true
+                    delay(900)
+                    showUpdateSuccess = false
+                }
+                // On failure: no checkmark, no success claim — the overlay
+                // just fades away (via the AnimatedVisibility exit below)
+                // and the screen falls back to showing the error state
+                // underneath, same as any other failed check.
             }
         }
         AnimatedVisibility(
