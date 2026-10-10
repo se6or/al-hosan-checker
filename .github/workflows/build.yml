@@ -19,11 +19,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Install Android NDK
-        run: sdkmanager "ndk;27.0.12077973"
+        run: |
+          # The GitHub Ubuntu image ships the Android SDK at $ANDROID_HOME.
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "ndk;27.0.12077973"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
