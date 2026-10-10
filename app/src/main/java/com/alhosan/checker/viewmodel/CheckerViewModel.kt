@@ -587,6 +587,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         if (stored != null) {
             try {
                 _history.value = json.decodeFromString<List<HistoryItem>>(stored)
+                    .map { it.copy(pass = com.alhosan.checker.util.SecureVault.decrypt(it.pass)) }
             } catch (_: Exception) { }
         }
     }
@@ -595,7 +596,7 @@ class CheckerViewModel(application: Application) : AndroidViewModel(application)
         try {
             val encoded = json.encodeToString(
                 kotlinx.serialization.serializer<List<HistoryItem>>(),
-                _history.value
+                _history.value.map { it.copy(pass = com.alhosan.checker.util.SecureVault.encrypt(it.pass)) }
             )
             prefs.edit().putString("horse_final_v6", encoded).apply()
         } catch (_: Exception) { }

@@ -57,6 +57,7 @@ object AppUpdater {
         val apkUrl: String,
         val htmlUrl: String,
         val apkName: String,
+        val sha256: String,
     )
 
     @Serializable
@@ -121,6 +122,11 @@ object AppUpdater {
             val versionName = parseVersionName(release.tag_name, release.name)
             if (versionCode <= installedCode) return@withContext null
 
+            // Refuse to offer an update unless the release publishes a SHA-256 for it.
+            val checksumAsset = release.assets.firstOrNull { it.name == asset.name + ".sha256" }
+                ?: return@withContext null
+            val sha256 = fetchSha256(checksumAsset.browser_download_url) ?: return@withContext null
+
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (prefs.getInt(KEY_SKIPPED_VERSION, 0) == versionCode) {
                 return@withContext null
@@ -133,10 +139,36 @@ object AppUpdater {
                 apkUrl = asset.browser_download_url,
                 htmlUrl = release.html_url,
                 apkName = asset.name,
+                sha256 = sha256,
             )
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun fetchSha256(url: String): String? {
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "AlHosanChecker")
+            .build()
+        val text = client.newCall(request).execute().use { resp ->
+            if (!resp.isSuccessful) return null
+            resp.body?.string().orEmpty()
+        }
+        return Regex("\\b[a-fA-F0-9]{64}\\b").find(text)?.value?.lowercase()
+    }
+
+    private fun sha256Of(file: File): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buf = ByteArray(8192)
+            while (true) {
+                val n = input.read(buf)
+                if (n == -1) break
+                md.update(buf, 0, n)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     fun skipVersion(context: Context, versionCode: Int) {
@@ -178,6 +210,7 @@ object AppUpdater {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putString("download_path_$id", target.absolutePath)
+                .putString("sha_$id", info.sha256)
                 .putLong("pending_download_id", id)
                 .apply()
         }
@@ -224,6 +257,17 @@ object AppUpdater {
         val apk = File(path)
         if (!apk.exists()) return
 
+        // Never install a file whose hash doesn't match the one published with the release.
+        val expected = prefs.getString("sha_$downloadId", null)
+        if (expected.isNullOrBlank() || !sha256Of(apk).equals(expected, ignoreCase = true)) {
+            apk.delete()
+            prefs.edit().remove("download_path_$downloadId")
+                .remove("sha_$downloadId")
+                .remove("pending_download_id")
+                .apply()
+            return
+        }
+
         val uri: Uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             FileProvider.getUriForFile(
                 context,
@@ -242,6 +286,7 @@ object AppUpdater {
         context.startActivity(install)
 
         prefs.edit().remove("download_path_$downloadId")
+            .remove("sha_$downloadId")
             .remove("pending_download_id")
             .apply()
     }

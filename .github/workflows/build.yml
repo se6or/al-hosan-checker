@@ -74,21 +74,26 @@ jobs:
           # rename & move APK
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
           cp "$APK_FILE" "app/build/outputs/apk/release/al-hosan-checker-v${VCODE}.apk"
-          jarsigner -verify -verbose -certs "$APK_FILE" 2>&1 | tail -3
+          ASSET_PATH="app/build/outputs/apk/release/al-hosan-checker-v${VCODE}.apk"
+          sha256sum "$ASSET_PATH" | awk '{print $1}' > "$ASSET_PATH.sha256"
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$ASSET_PATH" || { echo "APK signature verification FAILED"; exit 1; }
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: al-hosan-checker-release
-          path: app/build/outputs/apk/release/*.apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/*.sha256
 
-      - name: Delete previous releases (keep only latest)
+      - name: Delete old releases (keep the 2 newest previous ones for rollback)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Deleting all old releases + tags so only the latest remains..."
+          echo "Deleting releases older than the 2 newest..."
           gh release list --json tagName,id --repo ${{ github.repository }} | \
-            jq -r '.[].tagName' | while read TAG; do
+            jq -r '.[2:][].tagName' | while read TAG; do
               if [ "$TAG" != "${{ steps.version.outputs.tag }}" ]; then
                 echo "  deleting $TAG"
                 gh release delete "$TAG" --yes --cleanup-tag --repo ${{ github.repository }} || true
@@ -121,7 +126,9 @@ jobs:
             Tap **`${{ steps.version.outputs.asset }}`** below to download, then install over the existing app.
 
             **متطلبات / Requirements:** Android 8.0+ (API 26)
-          files: app/build/outputs/apk/release/${{ steps.version.outputs.asset }}
+          files: |
+            app/build/outputs/apk/release/${{ steps.version.outputs.asset }}
+            app/build/outputs/apk/release/${{ steps.version.outputs.asset }}.sha256
           draft: false
           prerelease: false
           make_latest: true
