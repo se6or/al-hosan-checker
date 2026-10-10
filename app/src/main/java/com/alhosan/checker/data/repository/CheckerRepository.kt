@@ -68,7 +68,10 @@ import javax.net.ssl.X509TrustManager
  * 4. BETTER TIMEOUTS — split connect/read/write timeouts so slow servers
  *    don't hang the UI forever but still have a chance to respond.
  */
-class CheckerRepository {
+class CheckerRepository(
+    /** Only when true may the app accept untrusted certificates / downgrade HTTPS to HTTP. */
+    private val allowUntrustedCerts: () -> Boolean = { false }
+) {
 
     companion object {
         // Content-count retries / timeouts.
@@ -361,7 +364,7 @@ class CheckerRepository {
         return try {
             executeText(client, request)
         } catch (first: Exception) {
-            if (!isRetryablePanelTransportFailure(first)) throw first
+            if (!isRetryablePanelTransportFailure(first) || !allowUntrustedCerts()) throw first
 
             // NOTE: insecureClient accepts any SSL certificate (self-signed / expired).
             // This is intentional for IPTV panels — user traffic is NOT secured by TLS on these servers.
@@ -617,7 +620,7 @@ class CheckerRepository {
         return try {
             countJsonArrayWithClient(countClient, request)
         } catch (first: Exception) {
-            if (!isRetryablePanelTransportFailure(first)) throw first
+            if (!isRetryablePanelTransportFailure(first) || !allowUntrustedCerts()) throw first
             try {
                 countJsonArrayWithClient(insecureCountClient, request)
             } catch (second: Exception) {

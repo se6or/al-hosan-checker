@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -221,6 +223,25 @@ fun LoginScreen(
                                 onM3uLinkChange = viewModel::updateM3uLink,
                                 onTogglePassword = viewModel::togglePasswordVisibility
                             )
+                        }
+                        Item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            val allowUntrusted by viewModel.allowUntrustedCerts.collectAsState()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "قبول شهادات غير موثوقة (أقل أماناً) / Allow untrusted certificates",
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = allowUntrusted,
+                                    onCheckedChange = viewModel::setAllowUntrustedCerts
+                                )
+                            }
                         }
                         // Start-check button — with extra breathing space above so it
                         // doesn't overlap the password field's border.

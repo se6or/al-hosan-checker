@@ -30,8 +30,15 @@ import kotlinx.serialization.json.Json
  */
 class CheckerViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = CheckerRepository()
     private val prefs = application.getSharedPreferences("alhosan_prefs", 0)
+    private val _allowUntrustedCerts = MutableStateFlow(prefs.getBoolean("allow_untrusted_certs", false))
+    val allowUntrustedCerts: StateFlow<Boolean> = _allowUntrustedCerts.asStateFlow()
+    private val repository = CheckerRepository { _allowUntrustedCerts.value }
+
+    fun setAllowUntrustedCerts(value: Boolean) {
+        _allowUntrustedCerts.value = value
+        prefs.edit().putBoolean("allow_untrusted_certs", value).apply()
+    }
 
     private val json = Json {
         ignoreUnknownKeys = true
