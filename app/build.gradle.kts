@@ -22,10 +22,12 @@ android {
 
     signingConfigs {
         create("release") {
+            // Credentials come from environment variables (set as GitHub Secrets in CI).
+            // Never hardcode them in this file.
             storeFile = rootProject.file("alhosan-release.keystore")
-            storePassword = "alhosan2024"
+            storePassword = System.getenv("ALHOSAN_KS_PASS") ?: ""
             keyAlias = "alhosan"
-            keyPassword = "alhosan2024"
+            keyPassword = System.getenv("ALHOSAN_KEY_PASS") ?: ""
         }
     }
 

@@ -15,7 +15,7 @@ fi
 # Set NDK path (adjust as needed)
 if [ -z "$ANDROID_NDK_HOME" ]; then
     if [ -n "$ANDROID_HOME" ]; then
-        export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/26.1.10909125"
+        export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
     else
         echo "❌ ANDROID_NDK_HOME or ANDROID_HOME not set"
         exit 1

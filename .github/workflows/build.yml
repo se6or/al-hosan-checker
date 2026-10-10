@@ -53,6 +53,9 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Release APK (signed)
+        env:
+          ALHOSAN_KS_PASS: ${{ secrets.ALHOSAN_KS_PASS }}
+          ALHOSAN_KEY_PASS: ${{ secrets.ALHOSAN_KEY_PASS }}
         run: ./gradlew assembleRelease
 
       - name: Extract version info

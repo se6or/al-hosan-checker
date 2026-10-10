@@ -3,7 +3,9 @@ package com.alhosan.checker.data.repository
 import android.util.Log
 import com.alhosan.checker.data.model.CheckerInput
 import com.alhosan.checker.data.model.Subscription
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -363,7 +365,7 @@ class CheckerRepository {
 
             // NOTE: insecureClient accepts any SSL certificate (self-signed / expired).
             // This is intentional for IPTV panels — user traffic is NOT secured by TLS on these servers.
-            Log.w("CheckerRepo", "Panel transport failed, retrying with IPTV compatibility client: ${request.url}", first)
+            Log.w("CheckerRepo", "Panel transport failed, retrying with IPTV compatibility client: ${redactUrl(request.url)}", first)
             try {
                 executeText(insecureClient, request)
             } catch (second: Exception) {
@@ -376,7 +378,7 @@ class CheckerRepository {
                     val httpRequest = request.newBuilder()
                         .url(request.url.newBuilder().scheme("http").build())
                         .build()
-                    Log.w("CheckerRepo", "HTTPS panel transport still failed, downgrading to HTTP: ${httpRequest.url}", second)
+                    Log.w("CheckerRepo", "HTTPS panel transport still failed, downgrading to HTTP: ${redactUrl(httpRequest.url)}", second)
                     executeText(client, httpRequest)
                 } else {
                     throw second
@@ -434,6 +436,10 @@ class CheckerRepository {
             .hostnameVerifier { _, _ -> true }
             .build()
     }
+
+    /** Log-safe URL: drops query string (which contains username/password). */
+    private fun redactUrl(url: okhttp3.HttpUrl): String =
+        "${url.scheme}://${url.host}:${url.port}${url.encodedPath}"
 
     /**
      * Map a Java/OkHttp exception to a specific diagnostic error code.
@@ -521,7 +527,8 @@ class CheckerRepository {
             } // end coroutineScope
             } // end withTimeout
         } catch (e: Exception) {
-            // Catastrophic failure (cancellation, outer timeout, etc).
+            if (e is CancellationException && e !is TimeoutCancellationException) throw e
+            // Catastrophic failure (outer timeout, etc).
             // Return empty (pending) for all three; the ViewModel's finally
             // block converts any still-pending field to "0" so the counter
             // stops cleanly.
@@ -586,6 +593,7 @@ class CheckerRepository {
                         }
                         if (count >= 0) return count.toString()
                     } catch (e: Exception) {
+                        if (e is CancellationException && e !is TimeoutCancellationException) throw e
                         lastError = e
                         // Non-blocking backoff.
                         if (attempt < MAX_COUNT_RETRIES - 1) {
@@ -596,7 +604,7 @@ class CheckerRepository {
             }
         }
 
-        Log.w("CheckerRepo", "All count attempts failed for $url: ${lastError?.message}")
+        Log.w("CheckerRepo", "All count attempts failed for ${url.substringBefore('?')}: ${lastError?.message}")
         return ""
     }
 
